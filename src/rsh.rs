@@ -1,3 +1,5 @@
+use std::io::{self, BufRead, BufReader, Write}
+
 pub fn loop() {
     let line: String;
     let args: Vec<String>;
@@ -5,6 +7,7 @@ pub fn loop() {
 
     loop {
         println!("-> ");
+        io::stdout().flush().unwrap();
         line = rsh_read_line();
         args = rsh_split_line(line);
         status = lsh_execute(args)
@@ -15,14 +18,15 @@ pub fn loop() {
 
 }
 
-pub fn read_line() {
+pub fn prompt() -> String {
+
+    let reader = BufReader::new(io::stdin());
+}
+
+pub fn split_line(line: String) -> Vec<String> {
 
 }
 
-pub fn split_line(line: String) {
-
-}
-
-pub fn execute(args: Vec<String) {
+pub fn execute(args: Vec<String) -> i32 {
 
 }
