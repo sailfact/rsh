@@ -4,5 +4,5 @@ fn main() {
     // load config files
 
     // run command loop
-    rsh::loop();
+    rsh::r_loop();
 }

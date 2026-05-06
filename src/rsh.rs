@@ -1,32 +1,39 @@
-use std::io::{self, BufRead, BufReader, Write}
+use std::io::{
+    self, 
+    BufRead, 
+//    BufReader, 
+    Write
+};
 
-pub fn loop() {
-    let line: String;
-    let args: Vec<String>;
-    let status = true;
-
-    loop {
-        println!("-> ");
-        io::stdout().flush().unwrap();
-        line = rsh_read_line();
-        args = rsh_split_line(line);
-        status = lsh_execute(args)
-        if !status {
+pub fn r_loop() {
+    let args: Vec<&str>;
+    let mut delim = [" ", "\t", "\r", "\n", "\x07"]; 
+    let status: i32;
+    while let Some(line) = prompt("-> ") {
+        if line == "exit" {
             break;
         }
+        args = split_line(line, delims);
     }
+}
+
+
+pub fn prompt(label: &str) -> Option<String> {
+    print!("{}", label);
+    io::stdout().flush().unwrap();
+    let mut line = String::new();
+    match io::stdin().lock().read_line(&mut line) {
+        Ok(0) | Err(_) => None,       // EOF or error
+        Ok(_) => Some(line.trim().to_string()),
+    }
+}
+
+
+pub fn split_line(line: String, delims: ) -> Vec<String> {
 
 }
 
-pub fn prompt() -> String {
-
-    let reader = BufReader::new(io::stdin());
+/* 
+pub fn execute(args: Vec<String>) {
 }
-
-pub fn split_line(line: String) -> Vec<String> {
-
-}
-
-pub fn execute(args: Vec<String) -> i32 {
-
-}
+*/
