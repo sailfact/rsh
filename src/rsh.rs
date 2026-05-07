@@ -6,8 +6,8 @@ use std::io::{
 };
 
 pub fn r_loop() {
-    let args: Vec<&str>;
-    let mut delim = [" ", "\t", "\r", "\n", "\x07"]; 
+    let args: Vec<String>;
+    let delims [char; 5] = [' ', '\t', '\r', '\n', '\x07']; 
     let status: i32;
     while let Some(line) = prompt("-> ") {
         if line == "exit" {
@@ -29,8 +29,10 @@ pub fn prompt(label: &str) -> Option<String> {
 }
 
 
-pub fn split_line(line: String, delims: ) -> Vec<String> {
-
+pub fn split_line(line: String, delims: [char;5]) -> Vec<String> {
+    let tokens: Vec<String> = line.split(delims).collect();
+    println!("{}",tokens.);
+    tokens
 }
 
 /* 
