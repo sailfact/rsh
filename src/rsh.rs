@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, Write};
 use std::process::{Command, Child};
 
-use crate::buitins;
+use crate::buitins::BUILTINS;
 
 
 const DELIMS: &[char] = &[' ', '\t', '\r', '\n', '\x07'];
@@ -34,7 +34,7 @@ pub fn rsh_split_line(line: &str) -> Vec<String> {
         .collect() 
 }
 
-pub fn rsh_launch(args: &[String]) -> i32 {
+pub fn rsh_launch(args: &str) -> i32 {
     if args.is_empty(){ 
         return 1;
     }
@@ -47,6 +47,12 @@ pub fn rsh_launch(args: &[String]) -> i32 {
     status.code().unwrap_or(1)
 }
 
-pub fn rsh_execute(args: Vec<String>) {
-    rsh_launch(args);
+pub fn rsh_execute(args: Vec<String>) -> i32 {
+    if args.is_empty() {
+        return 1;
+    }
+    if let Some((_, func)) = BUILTINS.iter().find(|(name, _)| *name == cmd) {
+        return func(&args);   
+    }
+    return rsh_launch(&args);
 }

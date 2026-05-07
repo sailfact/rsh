@@ -4,7 +4,7 @@ use std::env;
 type BuiltinFn = fn(&[String]) -> i32;
 
 // Pair up command names with their functions
-const BUILTINS: &[(&str, BuiltinFn)] = &[
+pub const BUILTINS: &[(&str, BuiltinFn)] = &[
     ("cd",   rsh_cd),
     ("help", rsh_help),
     ("exit", rsh_exit),
