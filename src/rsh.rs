@@ -1,24 +1,22 @@
-use std::io::{
-    self, 
-    BufRead, 
-//    BufReader, 
-    Write
-};
+use std::io::{self, BufRead, Write};
+use std::process::{Command, Child};
 
-pub fn r_loop() {
-    let args: Vec<String>;
-    let delims [char; 5] = [' ', '\t', '\r', '\n', '\x07']; 
-    let status: i32;
-    while let Some(line) = prompt("-> ") {
-        if line == "exit" {
-            break;
-        }
-        args = split_line(line, delims);
+use crate::buitins;
+
+
+const DELIMS: &[char] = &[' ', '\t', '\r', '\n', '\x07'];
+
+pub fn rsh_loop() {
+    while let Some(line) = rsh_prompt("-> ") {
+        if line == "exit" { break; }
+        let args= rsh_split_line(&line);
+        let status= rsh_execute(&args);
+        println!("{}", status);
     }
 }
 
 
-pub fn prompt(label: &str) -> Option<String> {
+pub fn rsh_prompt(label: &str) -> Option<String> {
     print!("{}", label);
     io::stdout().flush().unwrap();
     let mut line = String::new();
@@ -29,13 +27,26 @@ pub fn prompt(label: &str) -> Option<String> {
 }
 
 
-pub fn split_line(line: String, delims: [char;5]) -> Vec<String> {
-    let tokens: Vec<String> = line.split(delims).collect();
-    println!("{}",tokens.);
-    tokens
+pub fn rsh_split_line(line: &str) -> Vec<String> {
+    line.split(DELIMS)
+        .filter(|s| !s.is_empty()) 
+        .map(|s: &str| s.to_string())
+        .collect() 
 }
 
-/* 
-pub fn execute(args: Vec<String>) {
+pub fn rsh_launch(args: &[String]) -> i32 {
+    if args.is_empty(){ 
+        return 1;
+    }
+    let mut child: Child = Command::new(&args[0])
+        .args(&args[1..])
+        .spawn()
+        .expect("failed to lauch process");
+    let status = child.wait().expect("failed to wait process");
+
+    status.code().unwrap_or(1)
 }
-*/
+
+pub fn rsh_execute(args: Vec<String>) {
+    rsh_launch(args);
+}
