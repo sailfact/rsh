@@ -1,0 +1,75 @@
+---
+title: Rust Shell — REPL Sequence Diagram
+---
+sequenceDiagram
+    actor User
+    participant Repl
+    participant Shell
+    participant Lexer
+    participant Parser
+    participant Executor
+    participant Builtins
+    participant Jobs as Jobs (Vec of Job)
+    participant OS
+
+    Note over Shell,OS: Startup
+    Shell->>OS: install SIGCHLD handler
+    Shell->>Repl: new()
+
+    loop REPL Loop
+        Shell->>Shell: reap_jobs() — drain SIGCHLD flag
+        Shell->>Repl: readline(prompt)
+        Repl->>User: print prompt
+        User-->>Repl: input line
+        Repl-->>Shell: Ok(line)
+
+        Shell->>Lexer: tokenize(line)
+        Lexer-->>Shell: Vec of Token
+
+        Shell->>Parser: parse(tokens)
+        Parser-->>Shell: Pipeline
+
+        alt single builtin (no pipe)
+            Shell->>Builtins: dispatch(name, args, &mut shell)
+            Builtins-->>Shell: exit_status
+        else external or piped pipeline
+            Shell->>Executor: execute(&mut shell, pipeline)
+
+            Executor->>OS: pipe() × (n-1) for n commands
+            OS-->>Executor: pipe fds
+
+            loop for each Command in Pipeline
+                Executor->>OS: fork()
+                OS-->>Executor: child pid
+
+                Note over Executor,OS: In child process:
+                Executor->>OS: dup2(pipe_in, 0)
+                Executor->>OS: dup2(pipe_out, 1)
+                Executor->>OS: setpgid(0, pgid)
+                Executor->>OS: execvp(argv)
+            end
+
+            Executor->>OS: close parent pipe fds
+            Executor->>Jobs: push Job (pgid, processes, Running)
+
+            alt background (&)
+                Note over Executor: return immediately
+                Executor-->>Shell: 0
+            else foreground
+                Executor->>OS: tcsetpgrp(tty, pgid)
+                Executor->>OS: waitpid(-pgid, WUNTRACED)
+                OS-->>Executor: status (exited / stopped / signaled)
+                Executor->>OS: tcsetpgrp(tty, shell_pgid)
+                Executor->>Jobs: update Job.status
+                Executor-->>Shell: exit_status
+            end
+        end
+
+        Shell->>Shell: store last_status
+    end
+
+    Note over OS,Shell: Async — at any time
+    OS-->>Shell: SIGCHLD
+    Shell->>Shell: set sigchld_pending flag
+    Note over Shell: handler is async-signal-safe
+    Note over Shell: actual reap happens on next REPL tick

@@ -1,7 +1,7 @@
 use std::env;
 
 // Builtin command function type
-type BuiltinFn = fn(&[String]) -> i32;
+pub type BuiltinFn = fn(&[String]) -> i32;
 
 // Pair up command names with their functions
 pub const BUILTINS: &[(&str, BuiltinFn)] = &[

@@ -1,0 +1,117 @@
+---
+title: Rust Shell — Struct Diagram
+---
+classDiagram
+    class Shell {
+        +jobs: Vec~Job~
+        +aliases: HashMap~String, String~
+        +env: HashMap~String, String~
+        +run()
+        +eval(input: String)
+    }
+
+    class Repl {
+        +readline(prompt: &str) String
+        +print_output(output: &str)
+    }
+
+    class Lexer {
+        +input: String
+        +tokenize() Vec~Token~
+    }
+
+    class Token {
+        <<enumeration>>
+        Word(String)
+        Pipe
+        RedirectIn
+        RedirectOut
+        RedirectAppend
+        Ampersand
+        Semicolon
+    }
+
+    class Parser {
+        +tokens: Vec~Token~
+        +parse() Pipeline
+    }
+
+    class Pipeline {
+        +commands: Vec~Command~
+        +background: bool
+    }
+
+    class Command {
+        +argv: Vec~String~
+        +stdin: Redirect
+        +stdout: Redirect
+        +is_builtin() bool
+    }
+
+    class Redirect {
+        <<enumeration>>
+        Inherit
+        File(String)
+        Pipe
+    }
+
+    class Executor {
+        +execute(pipeline: Pipeline, jobs: &mut Vec~Job~)
+        +exec_builtin(cmd: &Command, shell: &mut Shell)
+        +exec_external(cmd: &Command) Child
+        +setup_pipes(cmds: &Vec~Command~)
+    }
+
+    class Job {
+        +id: usize
+        +pgid: Pid
+        +processes: Vec~Process~
+        +status: JobStatus
+        +wait()
+        +send_signal(sig: Signal)
+    }
+
+    class Process {
+        +pid: Pid
+        +argv: Vec~String~
+        +status: ProcessStatus
+    }
+
+    class JobStatus {
+        <<enumeration>>
+        Running
+        Stopped
+        Done
+    }
+
+    class ProcessStatus {
+        <<enumeration>>
+        Running
+        Exited(i32)
+        Signaled(Signal)
+    }
+
+    class Builtins {
+        +cd(args: &[String], shell: &mut Shell)
+        +exit(code: i32)
+        +alias(args: &[String], shell: &mut Shell)
+        +jobs(jobs: &Vec~Job~)
+        +fg(id: usize, jobs: &mut Vec~Job~)
+        +bg(id: usize, jobs: &mut Vec~Job~)
+    }
+
+    Shell --> Repl : uses
+    Shell --> Lexer : creates
+    Shell --> Parser : creates
+    Shell --> Executor : uses
+    Shell "1" --> "*" Job : owns
+    Lexer --> Token : produces
+    Parser --> Token : consumes
+    Parser --> Pipeline : produces
+    Pipeline "1" --> "*" Command : contains
+    Command --> Redirect : has stdin/stdout
+    Executor --> Job : creates
+    Executor --> Builtins : dispatches to
+    Job "1" --> "*" Process : owns
+    Job --> JobStatus : has
+    Process --> ProcessStatus : has
