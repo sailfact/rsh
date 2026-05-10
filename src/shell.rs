@@ -11,11 +11,13 @@ pub struct Shell {
 
 impl Shell {
     pub fn run() -> i32 {
+        // Tod
         0
     }
 
     pub fn eval(input: &str) -> i32 {
         let tokens = tokenize(input);   
+        // Todo
         0
     } 
 }
