@@ -1,26 +1,15 @@
-pub fn rsh_execute(args: Vec<String>) -> i32 {
-    if args.is_empty() {
-        return 1;
-    }
+use crate::shell::Shell;
+use crate::parser::Command;
 
-    if BUILTINS.iter().any(|(name, _)| *name == args[0]) {
-        run_builtin(&args);
-    }
-    return rsh_launch(&args);
+pub fn execute(pipeline: Pipeline, jobs: &mut Vec<Job>) {
+    
 }
+pub fn exec_builtin(cmd: &Command, shell: &mut Shell) {
 
-
-
-pub fn rsh_launch(args: &[String]) -> i32 {
-    if args.is_empty(){ 
-        return 1;
-    }
-    let mut child: Child = Command::new(&args[0])
-        .args(&args[1..])
-        .spawn()
-        .expect("failed to lauch process⛔");
-    let status = child.wait().expect("failed to wait process ⛔");
-
-    status.code().unwrap_or(1)
 }
+pub fn exec_external(cmd: &Command) {
 
+}
+pub fn setup_pipes(cmds: &Vec<Command>) {
+
+}

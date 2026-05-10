@@ -8,6 +8,10 @@ pub const BUILTINS: &[(&str, BuiltinFn)] = &[
     ("cd",   rsh_cd),
     ("help", rsh_help),
     ("exit", rsh_exit),
+    ("alias", rsh_help),
+    ("jobs", rsh_jobs),
+    ("fg", rsh_fg),
+    ("bg", rsh_bg),
 ];
 
 // Look up and run a builtin, returns None if not a builtin

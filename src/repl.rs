@@ -6,8 +6,9 @@ pub fn readline(label: &str) -> Option<String> {
         Ok(0) | Err(_) => None,       // EOF or error
         Ok(_) => Some(line.trim().to_string()),
     }
+    line
 }
 
 pub fn print_output(output: &str){
-    println!(&str);
+    println!("{:#?}",&str);
 }
