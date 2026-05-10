@@ -33,7 +33,9 @@ pub enum ProcessStatus {
 
 // Job impl
 impl Job {
-    pub fn new(id: usize, pgid: Pid, processes: Vec<Process>, command_line: String) -> Self { ... }
+    pub fn new(id: usize, pgid: Pid, processes: Vec<Process>, command_line: String) -> Self { 
+        
+    }
 
     /// Recompute aggregate status from the underlying processes.
     pub fn update_status(&mut self) { ... }
