@@ -1,21 +1,6 @@
 use crate::Types::Token;
-
 pub struct Parser {
     tokens: Vec<Token>,
-}
-
-
-#[derive(Default)]
-pub struct Pipeline {
-    commands: Vec<Command>,
-    background: bool
-}
-
-#[derive(Default)]
-pub struct Command {
-    argv: Vec<string>,
-    stdin: Redirect,
-    stdout: Redirect
 }
 
 // imple Parser
@@ -29,14 +14,5 @@ impl Parser{
         let mut pl = Pipeline::default();
         // To Do Walk token Stream Left to Right
         pl
-    }
-}
-
-// impl Pipeline
-
-// impl Command
-impl Command {
-    pub fn is_builtin() -> bool {
-        true
     }
 }

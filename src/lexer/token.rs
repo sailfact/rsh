@@ -9,9 +9,3 @@ pub enum Token{
     Semicolon,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Redirect {
-    File(String),
-    Inherit, 
-    Pipe,
-}
