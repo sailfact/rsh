@@ -1,69 +1,58 @@
 use std::path::PathBuf;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
-use rustyline::Result;
 
 pub struct Repl{
     editor: DefaultEditor,
     history: Option<PathBuf>,
-    prompt: &str,
+    label: String,
 }
 
 impl Repl {
-    pub fn new(history: Option<&str>, prompt: &str) -> Result<Self> {
-        let mut editor = DefaultEditor::new()?;
+    pub fn new(history: Option<&str>, label: String) -> Result<Self, ReplError> {
+        // Create Default Editor
+        let mut editor = DefaultEditor::new()
+            .map_err(ReplError::ReadLine);
+        // Set label if none provided
+        let label = if label.is_empty() { String::from(">>>") } else { label };
+        
         let mut path_buffer = None;
-        if prompt.isEmpty() {
-            let prompt = ">>>";
-        }
 
-
+        // if history is give set History
         if let Some(path) = history {
-            let _ = editor.load_history(path);
+            let _ = editor.load_history(path).map_err(|e| ReplError::LoadHistory {
+                path: path.to_String(),
+                source: e,
+            })?;
             path_buffer = Some(PathBuf::from(path));
         }
+        // Create Repl
         Ok(Self { 
             editor,
             history: path_buffer,
-            prompt: prompt,
+            label,
         })
     }
 
-    fn read_line(&mut self, label: &str) -> Result<()> {
-        loop {
-            match self.editor.readline(&self.prompt) {
-                Ok(line) => {
-                    self.add_history(line.as_str())?;
-                    println!("Line: {}", line);
-                },
-                Err(ReadlineError::Interrupted) => {
-                    println!("CTRL-C");
-                    break;
-                },
-                    Err(ReadlineError::Eof) => {
-                    println!("CTRL-D");
-                    break;
-                },
-                Err(err) => {
-                    println!("Error: {:?}", err);
-                    break;
-                }
+    pub fn read_line(&mut self) -> Result<ReadResult, ReadlineError> {
+        match self.editor.readline(&self.label) {
+            Ok(line) => {
+                let _ = self.editor.add_history_entry(&line);
+                Ok(ReadResult::ReadLine(line))
             }
+            Err(ReadlineError::Interrupted) => Ok(ReadResult::Interrupt),
+            Err(ReadlineError::Eof) => Ok(ReadResult::EoF),
+            Err(e) => Err(ReplError::ReadLine(e)),
         }
-        self.save_history(&line)
     }
 
-
-    fn add_history(&mut self, line: &str) {
-        self.editor.add_history_entry(&line);
+    pub fn save_history(&mut self) -> Result<(), ReplError>{
+        if let Some(ref path) = self.history {
+            self.editor.save_history(path).map_err(|e| ReplError::SaveHistory {
+                path: path.display().to_string(),
+                source: e,
+            })?;
+        }
+        Ok(())
     }
-
-    fn save_history(&mut self, history: Option<&str>) {
-        self.editor.save_history(history);
-    }
-}
-
-pub fn prompt(history: Option<&str>, label: &str) -> i32 {
-    Repl::new(history, &str);
-    0
-}
+}  

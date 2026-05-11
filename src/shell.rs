@@ -10,7 +10,7 @@ pub struct Shell {
 
 impl Shell {
     pub fn run() -> i32 {
-        // Tod
+        // Todo
         0
     }
 
