@@ -1,11 +1,4 @@
-use crate::lexer::Token;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Redirect {
-    File(String),
-    Inherit, 
-    Pipe,
-}
+use crate::Types::Token;
 
 pub struct Parser {
     tokens: Vec<Token>,

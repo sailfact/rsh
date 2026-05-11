@@ -1,4 +1,10 @@
-pub fn readline(label: &str) -> Option<String> {
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
+
+pub struct Repl{
+    editor: rustyline::Editor
+}
+pub fn read_line(label: &str) -> Option<String> {
     print!("{}", label);
     io::stdout().flush().unwrap();
     let mut line = String::new();

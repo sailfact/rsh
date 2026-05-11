@@ -1,15 +1,11 @@
-use crate::shell::Shell;
-use crate::parser::Command;
+use rust_shell::Shell;
+use crate::parser::Pipeline;
 
-pub fn execute(pipeline: Pipeline, jobs: &mut Vec<Job>) {
+pub mod Executor {
+
+    pub fn execute(shel: &mut Shell, pipeline: Pipeline) -> i32{
     
-}
-pub fn exec_builtin(cmd: &Command, shell: &mut Shell) {
+    }   
 
-}
-pub fn exec_external(cmd: &Command) {
-
-}
-pub fn setup_pipes(cmds: &Vec<Command>) {
-
+    fn 
 }

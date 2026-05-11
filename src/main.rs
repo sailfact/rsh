@@ -1,9 +1,4 @@
-mod shell;
-mod lexer;
-
+use shell::Shell;
 fn main() {
-    // load config files
-
-    // run command loop
-    shell::rsh_loop();
+    
 }

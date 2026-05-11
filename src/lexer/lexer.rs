@@ -1,13 +1,4 @@
-#[derive(Debug, PartialEq, Clone)]
-pub enum Token{
-    Word(String),
-    Pipe,
-    RedirectIn,
-    RedirectOut, 
-    RedirectAppend, 
-    Ampersand, 
-    Semicolon,
-}
+use crate::Types::Token;
 
 pub struct Lexer {
     input: Vec<char>,
@@ -18,7 +9,7 @@ impl Lexer {
     // Create new lexer from a give input
     pub fn new(input: &str) -> Self {
         Self {
-            input: input.chars().collect,
+            input: input.chars().collect(),
             pos: 0,
         }
     }

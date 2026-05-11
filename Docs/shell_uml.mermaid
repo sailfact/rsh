@@ -2,115 +2,169 @@
 title: Rust Shell — Struct Diagram
 ---
 classDiagram
-    class Shell {
-        +jobs: Vec~Job~
-        +aliases: HashMap~String, String~
-        +env: HashMap~String, String~
-        +run()
-        +eval(input: String)
+    namespace shell_mod {
+        class Shell {
+            +jobs: Vec~Job~
+            +aliases: HashMap~String, String~
+            +env: HashMap~String, String~
+            +last_status: i32
+            +run()
+            +eval(input: &str)
+            +reap_jobs()
+        }
     }
 
-    class Repl {
-        +readline(prompt: &str) String
-        +print_output(output: &str)
+    namespace repl_mod {
+        class Repl {
+            -editor: rustyline::Editor
+            +readline(prompt: &str) Result~String~
+            +add_history(line: &str)
+        }
     }
 
-    class Lexer {
-        +input: String
-        +tokenize() Vec~Token~
-    }
-    class Token {
-        <<enumeration>>
-        Word(String)
-        Pipe
-        RedirectIn
-        RedirectOut
-        RedirectAppend
-        Ampersand
-        Semicolon
+    namespace lexer_mod {
+        class Lexer {
+            +input: String
+            +pos: usize
+            +tokenize() Result~Vec~Token~~
+        }
+
+        class Token {
+            <<enumeration>>
+            Word(String)
+            Pipe
+            RedirectIn
+            RedirectOut
+            RedirectAppend
+            Ampersand
+            Semicolon
+        }
     }
 
-    class Parser {
-        +tokens: Vec~Token~
-        +parse() Pipeline
+    namespace parser_mod {
+        class Parser {
+            +tokens: Vec~Token~
+            +pos: usize
+            +parse() Result~Pipeline~
+        }
+
+        class Pipeline {
+            +commands: Vec~Command~
+            +background: bool
+        }
+
+        class Command {
+            +argv: Vec~String~
+            +stdin: Redirect
+            +stdout: Redirect
+        }
+
+        class Redirect {
+            <<enumeration>>
+            Inherit
+            File(String)
+            Append(String)
+            Pipe
+        }
     }
 
-    class Pipeline {
-        +commands: Vec~Command~
-        +background: bool
+    namespace executor_mod {
+        class Executor {
+            +execute(shell: &mut Shell, pipeline: Pipeline) i32
+            -spawn_pipeline(cmds: &[Command]) Vec~Process~
+            -wait_foreground(pgid: Pid) i32
+        }
     }
 
-    class Command {
-        +argv: Vec~String~
-        +stdin: Redirect
-        +stdout: Redirect
-        +is_builtin() bool
+    namespace jobs_mod {
+        class Job {
+            +id: usize
+            +pgid: Pid
+            +processes: Vec~Process~
+            +status: JobStatus
+            +command_line: String
+            +update_status()
+            +send_signal(sig: Signal)
+        }
+
+        class Process {
+            +pid: Pid
+            +argv: Vec~String~
+            +status: ProcessStatus
+        }
+
+        class JobStatus {
+            <<enumeration>>
+            Running
+            Stopped
+            Done(i32)
+        }
+
+        class ProcessStatus {
+            <<enumeration>>
+            Running
+            Exited(i32)
+            Signaled(Signal)
+            Stopped
+        }
+
+        class SigchldHandler {
+            <<module>>
+            +install()
+            +handle(sig: c_int)
+        }
     }
 
-    class Redirect {
-        <<enumeration>>
-        Inherit
-        File(String)
-        Pipe
+    namespace builtins_mod {
+        class builtins {
+            <<module>>
+            +dispatch(name: &str, args: &[String], shell: &mut Shell) Option~i32~
+            +is_builtin(name: &str) bool
+        }
+
+        class cd {
+            <<module>>
+            +run(args: &[String], shell: &mut Shell) i32
+        }
+
+        class alias {
+            <<module>>
+            +run(args: &[String], shell: &mut Shell) i32
+        }
+
+        class exit_b {
+            <<module>>
+            +run(args: &[String]) !
+        }
+
+        class jobs_b {
+            <<module>>
+            +jobs(shell: &Shell) i32
+            +fg(id: usize, shell: &mut Shell) i32
+            +bg(id: usize, shell: &mut Shell) i32
+        }
     }
 
-    class Executor {
-        +execute(pipeline: Pipeline, jobs: &mut Vec~Job~)
-        +exec_builtin(cmd: &Command, shell: &mut Shell)
-        +exec_external(cmd: &Command) Child
-        +setup_pipes(cmds: &Vec~Command~)
-    }
-
-    class Job {
-        +id: usize
-        +pgid: Pid
-        +processes: Vec~Process~
-        +status: JobStatus
-        +wait()
-        +send_signal(sig: Signal)
-    }
-
-    class Process {
-        +pid: Pid
-        +argv: Vec~String~
-        +status: ProcessStatus
-    }
-
-    class JobStatus {
-        <<enumeration>>
-        Running
-        Stopped
-        Done
-    }
-
-    class ProcessStatus {
-        <<enumeration>>
-        Running
-        Exited(i32)
-        Signaled(Signal)
-    }
-
-    class Builtins {
-        +cd(args: &[String], shell: &mut Shell)
-        +exit(code: i32)
-        +alias(args: &[String], shell: &mut Shell)
-        +jobs(jobs: &Vec~Job~)
-        +fg(id: usize, jobs: &mut Vec~Job~)
-        +bg(id: usize, jobs: &mut Vec~Job~)
-    }
-
-    Shell --> Repl : uses
-    Shell --> Lexer : creates
-    Shell --> Parser : creates
+    Shell --> Repl : owns
     Shell --> Executor : uses
     Shell "1" --> "*" Job : owns
+    Shell ..> builtins : dispatches via
+    Shell ..> SigchldHandler : installs
+
     Lexer --> Token : produces
     Parser --> Token : consumes
     Parser --> Pipeline : produces
     Pipeline "1" --> "*" Command : contains
-    Command --> Redirect : has stdin/stdout
+    Command --> Redirect : stdin/stdout
+
+    Executor ..> Lexer : invokes
+    Executor ..> Parser : invokes
     Executor --> Job : creates
-    Executor --> Builtins : dispatches to
     Job "1" --> "*" Process : owns
-    Job --> JobStatus : has
-    Process --> ProcessStatus : has
+    Job --> JobStatus
+    Process --> ProcessStatus
+
+    builtins ..> cd
+    builtins ..> alias
+    builtins ..> exit_b
+    builtins ..> jobs_b
