@@ -1,6 +1,6 @@
 // File: src/lib.rs
 // Author: Ross Curley
-// Repo: https://github.com/sailfact/rust-shell.git
+// Repo: https://github.com/sailfact/rsh.git
 
 // Module declarations
 pub mod shell;

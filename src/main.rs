@@ -1,4 +1,4 @@
-use shell::Shell;
+use rsh::Shell;
 fn main() {
     
 }
