@@ -2,6 +2,8 @@ use std::path::PathBuf;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 
+use rsh::error::{ReplError, ReadResult};
+
 pub struct Repl{
     editor: DefaultEditor,
     history: Option<PathBuf>,

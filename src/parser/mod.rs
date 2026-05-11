@@ -1,4 +1,4 @@
-use crate::Types::Token;
+use rsh::lexer::Token;
 pub struct Parser {
     tokens: Vec<Token>,
 }

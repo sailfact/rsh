@@ -2,17 +2,18 @@
 // Author: Ross Curley
 // Repo: https://github.com/sailfact/rsh.git
 
-// Module declarations
 pub mod shell;
 pub mod repl;
+pub mod error;
 pub mod executor;
-pub mod lexer;
 pub mod parser;
+pub mod lexer;
 pub mod jobs;
-pub mod builtins;
+pub mod builtin;
 
-// RE-exports
 pub use shell::Shell;
+pub use repl::Repl;
+pub use error::{ReadResult, ReplError};
 
 pub use lexer::Lexer;
 pub use lexer::token::Token;
