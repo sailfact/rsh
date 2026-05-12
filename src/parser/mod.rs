@@ -1,18 +1,9 @@
-use rsh::lexer::Token;
-pub struct Parser {
-    tokens: Vec<Token>,
-}
+pub mod command;
+pub mod parser;
+pub mod pipeline;
+pub mod redirect;
 
-// imple Parser
-impl Parser{
-    pub fn new(tokens: Vec<Token>) -> self {
-        self {
-            tokens: tokens,
-        }
-    }
-    pub fn Parse(&mut self) -> Pipeline {
-        let mut pl = Pipeline::default();
-        // To Do Walk token Stream Left to Right
-        pl
-    }
-}
+pub use command::Command;
+pub use parser::Parser;
+pub use pipeline::Pipeline;
+pub use redirect::Redirect;

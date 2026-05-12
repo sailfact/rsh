@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
-
-use rsh::error::{ReplError, ReadResult};
+use thiserror::Error;
 
 pub struct Repl{
     editor: DefaultEditor,
@@ -10,11 +9,38 @@ pub struct Repl{
     label: String,
 }
 
+
+#[derive(Debug, Error)]
+pub enum ReplError {
+    #[error("readline error: {0}")]
+    ReadLine(#[from] rustyline::error::ReadlineError),
+
+    #[error("failed to load history from {path}: {source}")]
+    LoadHistory {
+        path: String,
+        #[source]
+        source: rustyline::error::ReadlineError,
+    },
+
+    #[error("failed to save history to {path}: {source}")]
+    SaveHistory {
+        path: String,
+        #[source]
+        source: rustyline::error::ReadlineError,
+    },
+}
+
+pub enum ReadResult {
+    Line(String),
+    Interrupted,
+    Eof,
+}
+
 impl Repl {
     pub fn new(history: Option<&str>, label: String) -> Result<Self, ReplError> {
         // Create Default Editor
         let mut editor = DefaultEditor::new()
-            .map_err(ReplError::ReadLine);
+            .map_err(ReplError::ReadLine)?;
         // Set label if none provided
         let label = if label.is_empty() { String::from(">>>") } else { label };
         
@@ -23,7 +49,7 @@ impl Repl {
         // if history is give set History
         if let Some(path) = history {
             let _ = editor.load_history(path).map_err(|e| ReplError::LoadHistory {
-                path: path.to_String(),
+                path: path.to_string(),
                 source: e,
             })?;
             path_buffer = Some(PathBuf::from(path));
@@ -36,14 +62,14 @@ impl Repl {
         })
     }
 
-    pub fn read_line(&mut self) -> Result<ReadResult, ReadlineError> {
+    pub fn read_line(&mut self) -> Result<ReadResult, ReplError> {
         match self.editor.readline(&self.label) {
             Ok(line) => {
                 let _ = self.editor.add_history_entry(&line);
-                Ok(ReadResult::ReadLine(line))
+                Ok(ReadResult::Line(line))
             }
-            Err(ReadlineError::Interrupted) => Ok(ReadResult::Interrupt),
-            Err(ReadlineError::Eof) => Ok(ReadResult::EoF),
+            Err(ReadlineError::Interrupted) => Ok(ReadResult::Interrupted),
+            Err(ReadlineError::Eof) => Ok(ReadResult::Eof),
             Err(e) => Err(ReplError::ReadLine(e)),
         }
     }

@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use std::io::{self, BufRead, Write};
 use crate::lexer::tokenize;
+use crate::Token;
+use crate::Job;
 
 pub struct Shell {
     jobs: Vec<Job>,

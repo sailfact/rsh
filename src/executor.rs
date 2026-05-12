@@ -1,11 +1,20 @@
-use rust_shell::Shell;
-use crate::parser::Pipeline;
+pub mod executor {
+    use crate::Shell;
+    use crate::jobs::{Job, JobStatus, Process, ProcessStatus};
+    use crate::parser::{Pipeline, Command};
+    use nix::unistd::Pid;
 
-pub mod Executor {
-
-    pub fn execute(shel: &mut Shell, pipeline: Pipeline) -> i32{
-    
+    pub fn execute(shell: &mut Shell, pipeline: Pipeline) -> i32{
+        0
     }   
 
-    fn 
+    fn spawn_pipeline(cmds: &[Command]) -> i32 {
+        // Todo
+        0
+    }
+
+    fn wait_foreground(pgid: Pid) -> i32 {
+        // Todo
+        0
+    }
 }

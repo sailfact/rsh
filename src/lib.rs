@@ -4,7 +4,6 @@
 
 pub mod shell;
 pub mod repl;
-pub mod error;
 pub mod executor;
 pub mod parser;
 pub mod lexer;
@@ -13,15 +12,17 @@ pub mod builtin;
 
 pub use shell::Shell;
 pub use repl::Repl;
-pub use error::{ReadResult, ReplError};
+pub use repl::{ReadResult, ReplError};
 
-pub use lexer::Lexer;
+// lexer module
+pub use lexer::lexer::Lexer;
 pub use lexer::token::Token;
 
-pub use parser::Parser;
+// parser module
+pub use parser::parser::Parser;
 pub use parser::pipeline::Pipeline;
 pub use parser::command::Command;
-pub use parser::redirect::Redirect;
+pub use parser::Redirect;
 
 pub use jobs::Job;
 pub use jobs::JobStatus;

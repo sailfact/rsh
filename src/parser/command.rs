@@ -1,6 +1,7 @@
-#[derive(Default)]
+use super::Redirect;
+
 pub struct Command {
-    argv: Vec<string>,
+    argv: Vec<String>,
     stdin: Redirect,
     stdout: Redirect
 }
