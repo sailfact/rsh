@@ -1,9 +1,9 @@
 use super::Redirect;
 
 pub struct Command {
-    argv: Vec<String>,
-    stdin: Redirect,
-    stdout: Redirect
+    pub argv: Vec<String>,
+    pub stdin: Redirect,
+    pub stdout: Redirect
 }
 
 // impl Command

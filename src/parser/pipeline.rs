@@ -1,8 +1,8 @@
 use super::Command;
 #[derive(Default)]
 pub struct Pipeline {
-    commands: Vec<Command>,
-    background: bool
+    pub commands: Vec<Command>,
+    pub background: bool
 }
 
 impl Pipeline {
