@@ -1,4 +1,4 @@
-pub fn rsh_cd(args: &[String]) -> i32 {
+pub fn run(args: &[String]) -> i32 {
     match args.get(1) {
         None => {
             eprintln!("rsh: expected argument to \"cd\"");
