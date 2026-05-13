@@ -7,3 +7,4 @@ edition = "2024"
 nix = { version = "^0.31.2", features = ["process", "signal", "term", "fs"] }
 rustyline = "14"        # readline with history
 thiserror = "2"         # error types
+signal-hook = "0.3"

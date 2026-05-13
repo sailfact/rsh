@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::lexer::tokenize;
 use crate::Token;
 use crate::Job;

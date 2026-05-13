@@ -1,11 +1,13 @@
-use super::{Process, ProcessStatus, Signal, Pid};
+use super::{Process, ProcessStatus};
+use nix::sys::signal::{Signal, kill};
+use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
+use nix::unistd::Pid;
 
 pub struct Job {
     pub id: usize,
     pub pgid: Pid, 
     pub processes: Vec<Process>,
     pub status: JobStatus,
-    pub command_line: String,
 }
 pub enum JobStatus {
     Running,
@@ -15,43 +17,49 @@ pub enum JobStatus {
 
 // Job impl
 impl Job {
-    pub fn new(id: usize, pgid: Pid, processes: Vec<Process>, command_line: String) -> Self { 
-        Self { id, pgid, processes, status: JobStatus::Running, command_line }
-    }
-
-    /// Recompute aggregate status from the underlying processes.
-    pub fn update_status(&mut self) {
-        let all_done = self.processes.iter().all(|p| {
-            matches!(p.status, ProcessStatus::Exited(_) | ProcessStatus::Signaled(_))
-        });
-
-        if all_done {
-            let code = match self.processes.last().unwrap().status {
-                ProcessStatus::Exited(c) => c,
-                ProcessStatus::Signaled(sig) => 128 + sig as i32,
-                _ => unreachable!(),
-            };
-            self.status = JobStatus::Done(code);
-            return;
+    pub fn wait(&mut self) {
+        let mut exit_code = 0;
+        for process in self.processes.iter_mut() {
+            loop {
+                match waitpid(process.pid, Some(WaitPidFlag::WUNTRACED)) {
+                    Ok(WaitStatus::Exited(_, code)) => {
+                        process.status = ProcessStatus::Exited(code);
+                        exit_code = code;
+                        break;
+                    }
+                    Ok(WaitStatus::Stopped(_sig, sig)) => {
+                        process.status = ProcessStatus::Signaled(sig);
+                        self.status = JobStatus::Stopped;
+                        break;
+                    }
+                    Ok(WaitStatus::Signaled(_, sig, _)) => {
+                        process.status = ProcessStatus::Signaled(sig);
+                        exit_code = 128 + sig as i32;
+                        break;
+                    }
+                    Ok(_) => continue,
+                    Err(e) => {
+                        eprintln!("waitpid error: {}", e)
+                    }
+                }
+            }
         }
 
-        let any_stopped = self.processes.iter().any(|p| p.status == ProcessStatus::Stopped);
-        let any_running = self.processes.iter().any(|p| p.status == ProcessStatus::Running);
-
-        self.status = match (any_running, any_stopped) {
-            (true, _) => JobStatus::Running,
-            (false, true) => JobStatus::Stopped,
-            _ => JobStatus::Running,
-        };
+        // if no processes stopped the job, it's done
+        if !matches!(self.status, JobStatus::Stopped) {
+            self.status = JobStatus::Done(exit_code)
+        }
     }
+    
 
     /// Send a signal to the entire process group.
-    pub fn send_signal(&self, sig: Signal) -> nix::Result<()> {
-        // Negative pid targets the entire process group
-        nix::sys::signal::kill(Pid::from_raw(-self.pgid.as_raw()), sig)
+    pub fn send_signal(&self, sig: Signal) {
+        // negative pgid targets the entire process group
+        let pgid = Pid::from_raw(-self.pgid.as_raw());
+        if let Err(e) = kill(pgid, sig) {
+            eprint!("failed to send signal to job {}: {}", self.id, e);
+        }
     }
 
-    pub fn is_done(&self) -> bool {
-        matches!(self.status, JobStatus::Done(_))
-    }
+    
 }
