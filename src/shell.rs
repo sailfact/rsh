@@ -4,9 +4,9 @@ use crate::Token;
 use crate::Job;
 
 pub struct Shell {
-    jobs: Vec<Job>,
-    aliases: HashMap<String, String>,
-    env: HashMap<String, String>,
+    pub jobs: Vec<Job>,
+    pub aliases: HashMap<String, String>,
+    pub env: HashMap<String, String>,
 }
 
 impl Shell {

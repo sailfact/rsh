@@ -8,17 +8,31 @@ pub mod pwd;
 pub mod mkdir;
 pub mod rm;
 
-pub fn dispatch(name: &str, args:&[String], shell: &mut crate::Shell) -> i32 {
-    match name {
-        "cd" => cd::run(args, shell),
-        "alias" => alias::run(args, shell),
-        "ps" => ps::run(args, shell),
-        "exit" => exit::run(args, shell),
-        "ls" => ls::run(args, shell),
-        "echo" => echo::run(args, shell),
-        "pwd" => pwd::run(args, shell),
-        "mkdir" => mkdir::run(args, shell),
-        "rm" => rm::run(args, shell),
-        _ => 1,
+use crate::Shell;
+
+pub trait Builtin {
+    fn name(&self) -> &str;
+    fn run(&self, args: &[String], shell: &mut Shell) -> i32;
+}
+
+pub fn dispatch(name: &str, args:&[String], shell: &mut Shell) -> i32 {
+    let builtins: Vec<Box<dyn Builtin>> = vec![
+        Box::new(cd::Cd),
+        Box::new(alias::Alias),
+        Box::new(ps::Ps),
+        Box::new(exit::Exit),
+        Box::new(ls::Ls),
+        Box::new(echo::Echo),
+        Box::new(pwd::Pwd),
+        Box::new(mkdir::Mkdir),
+        Box::new(rm::Rm),
+    ];
+    match builtins.iter().find(|b| b.name() == name) {
+        Some(builtin) => builtin.run(args, shell),
+        None => 1,
     }
+}
+
+pub fn is_builtin(name: &str) -> bool {
+    matches!(name, "cd" | "alias" | "ps" | "exit" | "ls" | "echo" | "pwd" | "mkdir" | "rm")
 }
