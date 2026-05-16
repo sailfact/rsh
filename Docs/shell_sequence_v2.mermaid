@@ -1,0 +1,119 @@
+---
+title: rsh — REPL Sequence Diagram (v2, reflects actual code)
+---
+sequenceDiagram
+    actor User
+    participant Main
+    participant Shell
+    participant Repl
+    participant Lexer
+    participant Parser
+    participant Builtins
+    participant Executor
+    participant Jobs as Jobs (Vec~Job~)
+    participant OS
+
+    %% ── Startup ────────────────────────────────────────────────
+    Note over Main,OS: Startup
+    Main->>Shell: Shell::new()
+    activate Shell
+    Shell->>OS: [TODO] install SIGCHLD handler (sigaction)
+    Shell->>OS: [TODO] install SIGINT / SIGTTOU / SIGTTIN handlers
+    Shell->>Repl: Repl::new(history_path, label)
+    activate Repl
+    Repl-->>Shell: Ok(Repl)
+
+    %% ── REPL Loop ───────────────────────────────────────────────
+    loop REPL loop  [Shell::run() — TODO]
+        Shell->>Shell: [TODO] reap_jobs() — drain SIGCHLD flag
+        Shell->>Repl: read_line()
+        Repl->>User: print prompt (label)
+        User-->>Repl: keystroke / line
+        Repl-->>Shell: ReadResult
+
+        alt ReadResult::Eof
+            Shell->>Repl: save_history()
+            Repl-->>Shell: Ok(())
+            Shell-->>Main: exit code
+        else ReadResult::Interrupted  (Ctrl-C)
+            Note over Shell: print newline, continue loop
+        else ReadResult::Line(input)
+
+            %% ── Lex ──────────────────────────────────────────────
+            Shell->>Lexer: Lexer::new(input).tokenize()
+            activate Lexer
+            Note over Lexer: skip whitespace<br/>match |  &  ;  <  >  >><br/>handle 'quoted' / "quoted"<br/>fall through to read_word()
+            Lexer-->>Shell: Vec~Token~
+            deactivate Lexer
+
+            %% ── Parse ────────────────────────────────────────────
+            Shell->>Parser: Parser::new(tokens).parse()
+            activate Parser
+            Note over Parser: strip trailing &amp; → background<br/>split on Pipe tokens<br/>parse_command() per segment<br/>(sets Redirect::Pipe between adjacent cmds)
+            Parser-->>Shell: Pipeline { commands, background }
+            deactivate Parser
+
+            %% ── Alias expansion ──────────────────────────────────
+            Note over Shell: [TODO] expand alias on commands[0].argv[0]
+
+            %% ── Dispatch ─────────────────────────────────────────
+            alt single command AND is_builtin(argv[0])  [Shell::eval() — TODO]
+                Shell->>Builtins: dispatch(name, args, &mut shell)
+                activate Builtins
+                Note over Builtins: iterate registered builtins<br/>match on name()<br/>call run(args, shell)
+                Builtins-->>Shell: exit_status: i32
+                deactivate Builtins
+            else external command or pipeline  [Executor::execute() — TODO]
+                Shell->>Executor: execute(&mut shell, pipeline)
+                activate Executor
+
+                Note over Executor: [TODO] open pipe fds × (n-1)
+                Executor->>OS: pipe() × (n-1)
+                OS-->>Executor: (read_fd, write_fd) pairs
+
+                loop for each Command in pipeline.commands
+                    Executor->>OS: fork()
+                    OS-->>Executor: child_pid
+
+                    Note over OS: ── child process ──
+                    OS->>OS: setpgid(0, pgid)
+                    OS->>OS: dup2(pipe_read, STDIN_FILENO)  if Redirect::Pipe
+                    OS->>OS: dup2(pipe_write, STDOUT_FILENO) if Redirect::Pipe
+                    OS->>OS: open(file) + dup2  if Redirect::File / Append
+                    OS->>OS: execvp(argv[0], argv)
+                    Note over OS: ── end child process ──
+                end
+
+                Executor->>OS: close all parent-side pipe fds
+                Executor->>Jobs: push Job { id, pgid, processes, Running }
+
+                alt pipeline.background == true
+                    Note over Executor: return immediately (job runs async)
+                    Executor-->>Shell: 0
+                else foreground
+                    Executor->>OS: tcsetpgrp(tty_fd, pgid)
+                    Executor->>Jobs: job.wait()  [blocks on waitpid(WUNTRACED)]
+                    Jobs->>OS: waitpid(pid, WUNTRACED) per process
+                    OS-->>Jobs: WaitStatus (Exited / Signaled / Stopped)
+                    Jobs-->>Executor: final exit_status
+                    Executor->>OS: tcsetpgrp(tty_fd, shell_pgid)
+                    Executor->>Jobs: update Job.status → Done(code) or Stopped
+                    Executor-->>Shell: exit_status
+                end
+
+                deactivate Executor
+            end
+
+            Shell->>Shell: [TODO] store last_status
+
+        end
+    end
+
+    deactivate Repl
+    deactivate Shell
+
+    %% ── Async signal path ───────────────────────────────────────
+    Note over OS,Shell: Async — any time  [TODO: not yet wired]
+    OS-->>Shell: SIGCHLD
+    Shell->>Shell: set atomic sigchld_pending flag  (async-signal-safe)
+    Note over Shell: actual reap deferred to next REPL tick via reap_jobs()

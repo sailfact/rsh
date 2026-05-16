@@ -5,7 +5,7 @@ pub mod executor {
     use nix::unistd::Pid;
 
     pub fn execute(shell: &mut Shell, pipeline: Pipeline) -> i32{
-        
+        0
     }   
 
     fn spawn_pipeline(cmds: &[Command]) -> i32 {

@@ -1,0 +1,282 @@
+---
+title: rsh — Class / Module Diagram (v2, reflects actual code)
+---
+classDiagram
+    %% ═══════════════════════════════════════════════════════════
+    %% ENTRY POINT
+    %% ═══════════════════════════════════════════════════════════
+    namespace main_rs {
+        class main {
+            <<function>>
+            +main() void
+        }
+    }
+
+    %% ═══════════════════════════════════════════════════════════
+    %% SHELL  (src/shell.rs)
+    %% ═══════════════════════════════════════════════════════════
+    namespace shell_mod {
+        class Shell {
+            +jobs: Vec~Job~
+            +aliases: HashMap~String, String~
+            +env: HashMap~String, String~
+            +run() i32    %% TODO
+            +eval(input: &str) i32    %% TODO
+        }
+    }
+
+    %% ═══════════════════════════════════════════════════════════
+    %% REPL  (src/repl.rs)
+    %% ═══════════════════════════════════════════════════════════
+    namespace repl_mod {
+        class Repl {
+            -editor: DefaultEditor
+            -history: Option~PathBuf~
+            -label: String
+            +new(history: Option~&str~, label: String) Result~Self~, ReplError~
+            +read_line() Result~ReadResult~, ReplError~
+            +save_history() Result~()~, ReplError~
+        }
+        class ReadResult {
+            <<enumeration>>
+            Line(String)
+            Interrupted
+            Eof
+        }
+        class ReplError {
+            <<enumeration>>
+            ReadLine(ReadlineError)
+            LoadHistory(path, source)
+            SaveHistory(path, source)
+        }
+    }
+    Repl --> ReadResult : read_line returns
+    Repl ..> ReplError : raises
+
+    %% ═══════════════════════════════════════════════════════════
+    %% LEXER  (src/lexer/)
+    %% ═══════════════════════════════════════════════════════════
+    namespace lexer_mod {
+        class Lexer {
+            -input: Vec~char~
+            -pos: usize
+            +new(input: &str) Self
+            +tokenize() Vec~Token~
+            -peek() Option~char~
+            -advance() Option~char~
+            -read_word() String
+            -read_quoted() String
+        }
+
+        class Token {
+            <<enumeration>>
+            Word(String)
+            Pipe
+            RedirectIn
+            RedirectOut
+            RedirectAppend
+            Ampersand
+            Semicolon
+        }
+    }
+
+    %% ═══════════════════════════════════════════════════════════
+    %% PARSER  (src/parser/)
+    %% ═══════════════════════════════════════════════════════════
+    namespace parser_mod {
+        class Parser {
+            -tokens: Vec~Token~
+            +new(tokens: Vec~Token~) Self
+            +parse() Pipeline
+            -parse_command(tokens: Vec~Token~, is_first: bool, is_last: bool) Command
+        }
+
+        class Pipeline {
+            +commands: Vec~Command~
+            +background: bool
+            +new(commands: Vec~Command~, background: bool) Self
+        }
+
+        class Command {
+            +argv: Vec~String~
+            +stdin: Redirect
+            +stdout: Redirect
+            +new(argv: Vec~String~, stdin: Redirect, stdout: Redirect) Self
+            +is_builtin() bool    %% TODO — hardcoded true
+        }
+
+        class Redirect {
+            <<enumeration>>
+            Inherit
+            Pipe
+            File(String)
+            Append(String)
+        }
+    }
+
+    %% ═══════════════════════════════════════════════════════════
+    %% EXECUTOR  (src/executor.rs)  — all stubs / TODO
+    %% ═══════════════════════════════════════════════════════════
+    namespace executor_mod {
+        class executor {
+            <<module — all TODO>>
+            +execute(shell: &mut Shell, pipeline: Pipeline) i32
+            -spawn_pipeline(cmds: &[Command]) i32
+            -wait_foreground(pgid: Pid) i32
+        }
+    }
+
+    %% ═══════════════════════════════════════════════════════════
+    %% JOBS  (src/jobs/)
+    %% ═══════════════════════════════════════════════════════════
+    namespace jobs_mod {
+        class Job {
+            +id: usize
+            +pgid: Pid
+            +processes: Vec~Process~
+            +status: JobStatus
+            +wait()
+            +send_signal(sig: Signal)
+        }
+
+        class Process {
+            +pid: Pid
+            +argv: Vec~String~
+            +status: ProcessStatus
+        }
+
+        class JobStatus {
+            <<enumeration>>
+            Running
+            Stopped
+            Done(i32)
+        }
+
+        class ProcessStatus {
+            <<enumeration>>
+            Running
+            Exited(i32)
+            Signaled(Signal)
+            Stopped
+        }
+    }
+
+    %% ═══════════════════════════════════════════════════════════
+    %% BUILTINS  (src/builtin/)
+    %% ═══════════════════════════════════════════════════════════
+    namespace builtins_mod {
+        class Builtin {
+            <<trait>>
+            +name() &str
+            +run(args: &[String], shell: &mut Shell) i32
+        }
+
+        class dispatch_fn {
+            <<function>>
+            +dispatch(name: &str, args: &[String], shell: &mut Shell) i32
+            +is_builtin(name: &str) bool
+        }
+
+        class Echo {
+            +name() &str  %% "echo"
+            +run(args, shell) i32  %% implemented
+        }
+
+        class Cd {
+            +name() &str  %% "cd"
+            +run(args, shell) i32  %% implemented: set_current_dir + env PWD
+        }
+
+        class Alias {
+            +name() &str  %% "alias"
+            +run(args, shell) i32  %% implemented: list or insert
+        }
+
+        class Unalias {
+            +name() &str  %% "unalias"
+            +run(args, shell) i32  %% implemented: remove from shell.aliases
+        }
+
+        class Exit {
+            +name() &str  %% "exit"
+            +run(args, shell) i32  %% implemented: process::exit(0)
+        }
+
+        class Pwd {
+            +name() &str  %% "pwd"
+            +run(args, shell) i32  %% TODO — stub
+        }
+
+        class Ls {
+            +name() &str  %% "ls"
+            +run(args, shell) i32  %% TODO — stub
+        }
+
+        class Mkdir {
+            +name() &str  %% "mkdir"
+            +run(args, shell) i32  %% TODO — stub
+        }
+
+        class Rm {
+            +name() &str  %% "rm"
+            +run(args, shell) i32  %% TODO — stub
+        }
+
+        class Ps {
+            +name() &str  %% "ps"
+            +run(args, shell) i32  %% TODO — stub
+        }
+
+        class Fg {
+            +name() &str  %% "fg"
+            +run(args, shell) i32  %% TODO — stub (needs job signal logic)
+        }
+
+        class Bg {
+            +name() &str  %% "bg"
+            +run(args, shell) i32  %% TODO — stub (needs job signal logic)
+        }
+    }
+
+    %% ═══════════════════════════════════════════════════════════
+    %% RELATIONSHIPS
+    %% ═══════════════════════════════════════════════════════════
+
+    main --> Shell : creates
+
+    Shell --> Repl          : owns
+    Shell "1" --> "*" Job   : owns via jobs vec
+    Shell ..> executor      : calls execute()
+    Shell ..> dispatch_fn   : calls dispatch()
+
+    Repl ..> ReadResult     : returns
+    Repl ..> ReplError      : returns on error
+
+    Lexer ..> Token         : produces Vec of
+
+    Parser ..> Token        : consumes
+    Parser ..> Pipeline     : produces
+    Pipeline "1" *-- "*" Command : contains
+    Command --> Redirect    : stdin / stdout fields
+
+    executor ..> Job        : creates and pushes onto Shell.jobs
+    executor ..> Pipeline   : consumes
+    executor ..> Command    : iterates over
+
+    Job "1" *-- "*" Process : contains
+    Job --> JobStatus       : status field
+    Process --> ProcessStatus : status field
+
+    dispatch_fn ..> Builtin : iterates & calls
+    Echo ..|> Builtin
+    Cd ..|> Builtin
+    Alias ..|> Builtin
+    Unalias ..|> Builtin
+    Exit ..|> Builtin
+    Pwd ..|> Builtin
+    Ls ..|> Builtin
+    Mkdir ..|> Builtin
+    Rm ..|> Builtin
+    Ps ..|> Builtin
+    Fg ..|> Builtin
+    Bg ..|> Builtin
