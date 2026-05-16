@@ -7,6 +7,8 @@ pub mod echo;
 pub mod pwd;
 pub mod mkdir;
 pub mod rm;
+pub mod fg;
+pub mod bg;
 
 use crate::Shell;
 
@@ -19,6 +21,7 @@ pub fn dispatch(name: &str, args:&[String], shell: &mut Shell) -> i32 {
     let builtins: Vec<Box<dyn Builtin>> = vec![
         Box::new(cd::Cd),
         Box::new(alias::Alias),
+        Box::new(alias::Unalias),
         Box::new(ps::Ps),
         Box::new(exit::Exit),
         Box::new(ls::Ls),
@@ -26,6 +29,8 @@ pub fn dispatch(name: &str, args:&[String], shell: &mut Shell) -> i32 {
         Box::new(pwd::Pwd),
         Box::new(mkdir::Mkdir),
         Box::new(rm::Rm),
+        Box::new(fg::Fg),
+        Box::new(bg::Bg),
     ];
     match builtins.iter().find(|b| b.name() == name) {
         Some(builtin) => builtin.run(args, shell),

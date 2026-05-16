@@ -1,13 +1,14 @@
 use crate::shell::Shell;
 use super::Builtin;
 
-pub struct Ps;
+pub struct Bg;
 
-impl Builtin for Ps {
-    fn name(&self) -> &str { "ps" }
+impl Builtin for Bg {
+    fn name(&self) -> &str { "bg" }
 
     fn run(&self, _args: &[String], _shell: &mut Shell) -> i32 {
-        println!("ps: not implemented");
+        // TODO
+        println!("bg: not implemented");
         0
     }
 }
