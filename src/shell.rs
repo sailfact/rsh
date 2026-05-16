@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::f32::consts::E;
 use crate::ReadResult;
 use crate::ReplError;
-use crate::lexer;
-use crate::Token;
+use crate::lexer::tokenize;
+use crate::lexer::Token;
 use crate::Job;
 use crate::Repl;
 
@@ -48,7 +48,7 @@ impl Shell {
     }
 
     pub fn eval(&mut self, input: &str) -> i32 {
-        let tokens = lexer::tokenize(input);   
+        let tokens = tokenize(input);   
         // Todo
         0
     } 
