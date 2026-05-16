@@ -11,6 +11,7 @@ pub struct Shell {
     pub jobs: Vec<Job>,
     pub aliases: HashMap<String, String>,
     pub env: HashMap<String, String>,
+    pub last_status: i32,
 }
 
 impl Shell {
@@ -19,6 +20,7 @@ impl Shell {
             jobs: Vec::new(),
             aliases: HashMap::new(),
             env: std::env::vars().collect(),
+            last_status: 0,
         }
     }
 
@@ -31,7 +33,7 @@ impl Shell {
             
             match repl.read_line() {
                 Ok(ReadResult::Line(input)) => {
-                    self.eval(&input);
+                    self.last_status = self.eval(&input);
                 }
                 Ok(ReadResult::Eof) => break,
                 Ok(ReadResult::Interrupted) => continue,
