@@ -1,5 +1,22 @@
 use super::Redirect;
 
+const UUTILS_COREUTILS_COMMANDS: &[&str] = &[
+    "cp", 
+    "mv",
+    "rm",
+    "mkdir",
+    "rmdir",
+    "touch",
+    "ln",
+    "chmod",
+    "chown",
+    "stat",
+    "du",
+    "df",
+    "install",
+    "mktemp",    
+];
+
 pub struct Command {
     pub argv: Vec<String>,
     pub stdin: Redirect,
@@ -15,3 +32,4 @@ impl Command {
         true
     }
 }
+

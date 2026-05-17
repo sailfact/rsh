@@ -10,5 +10,5 @@ pub enum ProcessStatus {
     Running,
     Exited(i32),
     Signaled(Signal),
-    Stopped,
+    Stopped(Signal),
 }

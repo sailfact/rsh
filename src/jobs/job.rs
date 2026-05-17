@@ -61,5 +61,15 @@ impl Job {
         }
     }
 
+    pub fn is_done(&self) -> bool {
+        self.processes.iter().all(|p| !matches!(p.status, ProcessStatus::Running))
+    }
+
+    pub fn argv_string(&self) -> String {
+        self.processes.first()
+            .map(|p| p.argv.join(" "))
+            .unwrap_or_default()
+    }
+
     
 }
