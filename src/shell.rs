@@ -8,7 +8,6 @@ use crate::ReadResult;
 use crate::ReplError;
 use crate::Job; 
 use crate::tokenize;
-use crate::Token;
 use crate::ProcessStatus;
 use crate::executor;
 use crate::Parser;
@@ -55,7 +54,7 @@ impl Shell {
         Ok(())
     }
 
-    pub fn eval(&mut self, input: &str) -> i32 {
+    pub fn eval(&mut self, input: &str) {
         let input = input.trim();
         if input.is_empty() {
             return 0;
@@ -67,7 +66,8 @@ impl Shell {
             Ok(p) => p,
             Err(e) => {
                 eprintln!("rsh: parse error: {e}");
-                return 1;
+                self.last_status = 1;
+                return;
             }
         };
 

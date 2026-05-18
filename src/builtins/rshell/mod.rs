@@ -15,7 +15,7 @@ pub mod wait;
 pub mod trap;
 pub mod umask;
 pub mod read;
-pub mod type;
+pub mod r#type;
 pub mod hash;
 pub mod history;
 
