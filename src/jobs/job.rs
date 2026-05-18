@@ -17,6 +17,10 @@ pub enum JobStatus {
 
 // Job impl
 impl Job {
+    pub fn new(id: usize, pgid: Pid, processes: Vec<Process>) -> Self {
+        Job { id, pgid, processes, status: JobStatus::Running }
+    }
+
     pub fn wait(&mut self) {
         let mut exit_code = 0;
         for process in self.processes.iter_mut() {

@@ -5,7 +5,7 @@ use std::env;
 pub struct History;
 
 impl Builtin for History {
-    fn name(&self) -> &str { "history" }
+    fn name(&self) -> &'static str { "history" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo

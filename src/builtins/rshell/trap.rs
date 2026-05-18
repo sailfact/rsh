@@ -5,7 +5,7 @@ use std::env;
 pub struct Trap;
 
 impl Builtin for Trap {
-    fn name(&self) -> &str { "trap" }
+    fn name(&self) -> &'static str { "trap" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo

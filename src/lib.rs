@@ -9,6 +9,7 @@ pub mod builtins;
 pub mod shell;
 pub mod repl;
 pub mod executor;
+pub mod external;
 pub mod jobs;
 
 pub use shell::Shell;

@@ -5,7 +5,7 @@ use std::env;
 pub struct Jobs;
 
 impl Builtin for Jobs {
-    fn name(&self) -> &str { "jobs" }
+    fn name(&self) -> &'static str { "jobs" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo

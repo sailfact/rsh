@@ -5,7 +5,7 @@ pub struct Alias;
 pub struct Unalias;
 
 impl Builtin for Alias {
-    fn name(&self) -> &str { "alias" }
+    fn name(&self) -> &'static str { "alias" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.len() == 1 {
@@ -30,7 +30,7 @@ impl Builtin for Alias {
 }
 
 impl Builtin for Unalias {
-    fn name(&self) -> &str { "unalias" }
+    fn name(&self) -> &'static str { "unalias" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.len() < 2 {

@@ -5,7 +5,7 @@ use std::env;
 pub struct Cd;
 
 impl Builtin for Cd {
-    fn name(&self) -> &str { "cd" }
+    fn name(&self) -> &'static str { "cd" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         let dir = args.get(0).map(String::as_str).unwrap_or("~");

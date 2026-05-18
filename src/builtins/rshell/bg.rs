@@ -4,7 +4,7 @@ use super::Builtin;
 pub struct Bg;
 
 impl Builtin for Bg {
-    fn name(&self) -> &str { "bg" }
+    fn name(&self) -> &'static str { "bg" }
 
     fn run(&self, _args: &[String], _shell: &mut Shell) -> i32 {
         // TODO

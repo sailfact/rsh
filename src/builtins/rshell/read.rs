@@ -5,7 +5,7 @@ use std::env;
 pub struct Read;
 
 impl Builtin for Read {
-    fn name(&self) -> &str { "read" }
+    fn name(&self) -> &'static str { "read" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo

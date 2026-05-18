@@ -6,7 +6,7 @@ pub struct Set;
 pub struct Shift;
 
 impl Builtin for Set {
-    fn name(&self) -> &str { "set" }
+    fn name(&self) -> &'static str { "set" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo
@@ -16,7 +16,7 @@ impl Builtin for Set {
 }
 
 impl Builtin for Shift {
-    fn name(&self) -> &str { "shift" }
+    fn name(&self) -> &'static str { "shift" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo

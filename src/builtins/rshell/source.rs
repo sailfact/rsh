@@ -7,7 +7,7 @@ pub struct Dot;
 pub struct Return;
 
 impl Builtin for Source {
-    fn name(&self) -> &str { "source" }
+    fn name(&self) -> &'static str { "source" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo
@@ -17,7 +17,7 @@ impl Builtin for Source {
 }
 
 impl Builtin for Dot{
-    fn name(&self) -> &str { "." }
+    fn name(&self) -> &'static str { "." }
     
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo
@@ -27,7 +27,7 @@ impl Builtin for Dot{
 }
 
 impl Builtin for Return{
-    fn name(&self) -> &str { "return" }
+    fn name(&self) -> &'static str { "return" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo

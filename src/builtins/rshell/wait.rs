@@ -5,7 +5,7 @@ use std::env;
 pub struct Wait;
 
 impl Builtin for Wait {
-    fn name(&self) -> &str { "wait" }
+    fn name(&self) -> &'static str { "wait" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo

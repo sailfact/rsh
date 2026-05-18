@@ -8,10 +8,12 @@ pub mod set;
 pub mod unset;
 pub mod fg;
 pub mod bg;
+pub mod ps;
 pub mod jobs;
 pub mod pwd;
 pub mod kill;
 pub mod wait;
+pub mod exec;
 pub mod trap;
 pub mod umask;
 pub mod read;
@@ -26,7 +28,7 @@ use crate::ast::Command;
 use crate::shell::Shell;
 
 pub trait Builtin {
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
     fn run(&self, args: &[String], shell: &mut Shell) -> i32;
 }
 
@@ -60,12 +62,12 @@ impl Registry {
         r.register(r#type::Type);
         r.register(hash::Hash);
         r.register(history::History);
-        // adding a new builtin = one line here, nothing else changes
         r
     }
 
     fn register(&mut self, b: impl Builtin + 'static) {
-        self.builtins.insert(b.name(), Box::new(b));
+        let name = b.name();
+        self.builtins.insert(name, Box::new(b)); 
     }
 
     pub fn get(&self, name: &str) -> Option<&dyn Builtin> {
@@ -78,8 +80,38 @@ impl Registry {
 }
 
 pub fn dispatch(cmd: &Command, shell: &mut Shell) -> i32 {
-    match shell.registry.get(&cmd.argv[0]) {
-        Some(builtin) => builtin.run(&cmd.argv[1..], shell),
-        None => { eprintln!("rshell: Unknown builtin: {}", cmd.argv[0]); 1 }
+    let name = cmd.argv[0].as_str();
+    let args = &cmd.argv[1..];
+
+    match name {
+        "cd"      => cd::Cd.run(args, shell),
+        "exit"    => exit::Exit.run(args, shell),
+        "alias"   => alias::Alias.run(args, shell),
+        "unalias" => alias::Unalias.run(args, shell),
+        "export"  => export::Export.run(args, shell),
+        "unset"   => unset::Unset.run(args, shell),
+        "set"     => set::Set.run(args, shell),
+        "shift"   => set::Shift.run(args, shell),
+        "source"  => source::Source.run(args, shell),
+        "."       => source::Dot.run(args, shell),
+        "return"  => source::Return.run(args, shell),
+        "jobs"    => jobs::Jobs.run(args, shell),
+        "fg"      => fg::Fg.run(args, shell),
+        "bg"      => bg::Bg.run(args, shell),
+        "wait"    => wait::Wait.run(args, shell),
+        "kill"    => kill::Kill.run(args, shell),
+        "trap"    => trap::Trap.run(args, shell),
+        "umask"   => umask::Umask.run(args, shell),
+        "read"    => read::Read.run(args, shell),
+        "exec"    => exec::Exec.run(args, shell),
+        "pwd"     => pwd::Pwd.run(args, shell),
+        "hash"    => hash::Hash.run(args, shell),
+        "history" => history::History.run(args, shell),
+        "ps"      => ps::Ps.run(args, shell),
+        "type"    => r#type::Type.run(args, shell),
+        _ => {
+            eprintln!("rsh: unknown builtin: {}", name);
+            1
+        }
     }
 }
