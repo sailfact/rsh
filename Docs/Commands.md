@@ -155,11 +155,3 @@ const UUTILS_COREUTILS_COMMANDS: &[&str] = &[
 |`uu_xargs`|xargs (in uutils/findutils)|
 |`uu_test` / `uu_[`|`test` / `[` (essential for scripting support)|
 |`uu_expr`|expr|
-
-## Priority Order
-| # | Priority | Commands |
-|---|----------|----------|
-|**1**|Must-have shell builtins|cd, exit, alias, export, unset, source, jobs, fg, bg, wait, trap, read, type, pwd|
-|**2**| High-value uutils| ls, cat, echo, cp, mv, rm, mkdir, grep, head, tail, wc, sort|
-|**3**| Scripting support| test, [, expr, true, false, sleep, printf|
-|**4**| Nice to have|tee, tac, cut, tr, env, timeout, xargs
