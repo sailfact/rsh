@@ -26,7 +26,6 @@ pub fn dispatch(name: &str, args: Vec<OsString>) -> i32 {
         "tee"      => uu_tee::uumain(args.into_iter()),
         "test"|"[" => uu_test::uumain(args.into_iter()),
         "expr"     => uu_expr::uumain(args.into_iter()),
-        "xargs"    => uu_xargs::uumain(args.into_iter()),
         _          => unreachable!(),
     }
 }

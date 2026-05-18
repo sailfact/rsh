@@ -22,14 +22,7 @@ pub fn dispatch(name: &str, args: Vec<OsString>) -> i32 {
         "join"     => uu_join::uumain(args.into_iter()),
         "fold"     => uu_fold::uumain(args.into_iter()),
         "fmt"      => uu_fmt::uumain(args.into_iter()),
-        "nl"       => uu_nl::uumain(args.into_iter()),
         "tac"      => uu_tac::uumain(args.into_iter()),
-        "rev"      => uu_rev::uumain(args.into_iter()),
-        "expand"   => uu_expand::uumain(args.into_iter()),
-        "unexpand" => uu_unexpand::uumain(args.into_iter()),
-        "od"       => uu_od::uumain(args.into_iter()),
-        "xxd"      => uu_xxd::uumain(args.into_iter()),
-        "grep"     => uu_grep::uumain(args.into_iter()),
         _          => unreachable!(),
     }
 }

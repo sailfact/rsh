@@ -11,8 +11,8 @@ use std::ffi::OsString;
 
 // Flat list for builtin/mod.rs to use in is_uutils_builtin()
 pub const ALL_COMMANDS: &[&[&str]] = &[
-    fs::COMMANDS,
-    text::COMMANDS,
+    file_util::COMMANDS,
+    text_util::COMMANDS,
     system_util::COMMANDS,
     hash_util::COMMANDS,
     misc_util::COMMANDS,

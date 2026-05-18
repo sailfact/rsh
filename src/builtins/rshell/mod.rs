@@ -1,4 +1,26 @@
-// src/builtins/rsh/mod.rs
+// src/builtins/rshell/mod.rs
+pub mod cd;
+pub mod exit;
+pub mod alias;
+pub mod export;
+pub mod source;
+pub mod set;
+pub mod unset;
+pub mod fg;
+pub mod bg;
+pub mod jobs;
+pub mod pwd;
+pub mod kill;
+pub mod wait;
+pub mod trap;
+pub mod umask;
+pub mod read;
+pub mod r#type;
+pub mod hash;
+pub mod history;
+
+
+
 use std::collections::HashMap;
 use crate::ast::Command;
 use crate::shell::Shell;
@@ -49,17 +71,18 @@ impl Registry {
         self.builtins.contains_key(name)
     }
 }
+
 pub fn dispatch(cmd: &Command, shell: &mut Shell) -> i32 {
     match cmd.argv[0].as_str() {
         // Directory
         "cd"           => Cd::run(&cmd.argv[1..], shell),
         // Session
-        "exit"         => exit::run(&cmd.argv[1..]),
-        "exec"         => exec::run(&cmd.argv[1..], shell),
-        "alias"        => alias::run(&cmd.argv[1..], shell),
+        "exit"         => Exit::run(&cmd.argv[1..]),
+        "exec"         => Exec::run(&cmd.argv[1..], shell),
+        "alias"        => Alias::run(&cmd.argv[1..], shell),
 
         // Removes an alias from shell.aliases
-        "unalias"      => alias::unalias(&cmd.argv[1..], shell),
+        "unalias"      => Alias::unalias(&cmd.argv[1..], shell),
 
         // Adds/updates shell.env, marking vars for export to children
         "export"       => export::run(&cmd.argv[1..], shell),

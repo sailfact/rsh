@@ -1,17 +1,23 @@
+// src/builtins/mod.rs
 pub mod rshell;
 pub mod coreutils;
 
-use crate::Shell;
+use crate::ast::Command;
+use crate::shell::Shell;
 
-pub const RSHELL_BUILTINS: &[&str] = &[
-    "cd", "exit", "alias", "unalias",
-    "export", "unset", "source", ".",
-    "jobs", "fg", "bg", "wait",
-    "trap", "umask", "read", "type",
-    "pwd", "ps", "history", "hash",
-    "true", "false", "shift",
-    "break", "continue", "return",
-    "kill",  
+// ── Lookup tables ─────────────────────────────────────────────────────────────
+// These are the single source of truth for command routing.
+// executor.rs calls is_shell_builtin() / is_uutils_builtin() to decide
+// whether to fork and which dispatcher to call.
+
+pub const SHELL_BUILTINS: &[&str] = &[
+    "cd", "exit", "exec",
+    "alias", "unalias", "export", "unset", "set", "shift",
+    "source", ".", "return", "break", "continue",
+    "jobs", "fg", "bg", "wait", "kill",
+    "trap", "umask", "read", "pwd",
+    "echo", "true", "false",
+    "type", "hash", "history", "ps",
 ];
 
 pub const UUTILS_BUILTINS: &[&str] = &[
@@ -19,9 +25,9 @@ pub const UUTILS_BUILTINS: &[&str] = &[
     "cp", "mv", "rm", "mkdir", "rmdir", "touch", "ln",
     "chmod", "chown", "stat", "du", "df", "install", "mktemp",
     // text
-    "cat", "echo", "printf", "head", "tail", "wc", "sort",
+    "cat", "printf", "head", "tail", "wc", "sort",
     "uniq", "cut", "tr", "paste", "join", "fold", "fmt",
-    "nl", "tac", "rev", "expand", "unexpand", "od", "xxd", "grep",
+    "tac", 
     // system
     "whoami", "id", "hostname", "uname", "uptime", "date",
     "sleep", "yes", "env", "nohup", "timeout", "nice",
@@ -33,32 +39,45 @@ pub const UUTILS_BUILTINS: &[&str] = &[
     "seq", "factor", "basename", "dirname", "realpath",
     "pathchk", "link", "unlink", "sync", "truncate",
     "shuf", "comm", "csplit", "split", "tee",
-    "test", "[", "expr", "xargs",
+    "test", "[", "expr",
 ];
 
-
-pub fn dispatch(name: &str, args:&[String], shell: &mut Shell) -> i32 {
-    match name {
-        "cd"      => cd::Cd.run(args, shell),
-        "exit"    => exit::Exit.run(args, shell),
-        "alias"   => alias::Alias.run(args, shell),
-        "export"   => export::Export.run(args, shell),
-        "jobs"      => ps::Ps.run(args, shell),
-        "pwd"     => pwd::Pwd.run(args, shell),
-        "fg"      => fg::Fg.run(args, shell),
-        "bg"      => bg::Bg.run(args, shell),
-        "ls"      => ls::Ls.run(args, shell),
-        "echo"    => echo::Echo.run(args, shell),
-        "mkdir"   => mkdir::Mkdir.run(args, shell),
-        "rm"      => rm::Rm.run(args, shell),
-        _         => 1,
-    }
-}
+// ── Routing ───────────────────────────────────────────────────────────────────
 
 pub fn is_shell_builtin(name: &str) -> bool {
-    matches!(name, "cd" | "alias" | "ps" | "exit" | "ls" | "echo" | "pwd" | "mkdir" | "rm" | "fg" | "bg")
+    SHELL_BUILTINS.contains(&name)
 }
 
 pub fn is_uutils_builtin(name: &str) -> bool {
-    coreutils::ALL_COMMANDS.iter().any(|group| group.contains(&name))
+    UUTILS_BUILTINS.contains(&name)
+}
+
+pub fn is_any_builtin(name: &str) -> bool {
+    is_shell_builtin(name) || is_uutils_builtin(name)
+}
+
+// ── Dispatch ──────────────────────────────────────────────────────────────────
+// These are thin wrappers — all real logic lives in the submodules.
+// executor.rs only ever calls these two functions.
+
+/// Called in the SHELL process (before fork).
+/// Handles trivial commands inline, then delegates to the Registry.
+pub fn exec_shell_builtin(cmd: &Command, shell: &mut Shell) -> i32 {
+    // Trivial commands — not worth a Registry entry
+    match cmd.argv[0].as_str() {
+        "true"     => return 0,
+        "false"    => return 1,
+        "break"    => return 128,  // scripting layer checks sentinel
+        "continue" => return 129,  //
+        _ => {}
+    }
+
+    // Everything else goes through the Registry
+    rshell::dispatch(cmd, shell)
+}
+
+/// Called in the CHILD process (after fork + dup2).
+/// Delegates entirely to the coreutils dispatcher.
+pub fn exec_uutils_builtin(cmd: &Command) -> i32 {
+    coreutils::dispatch(cmd)
 }

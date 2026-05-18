@@ -2,11 +2,11 @@ use nix::unistd::Pid;
 use std::ffi::OsString;
 use crate::{Shell, Pipeline, Command, Job, Process, ProcessStatus};
 
-pub fn exec_builtin(shell: &mut Shell, pipeline: Pipeline) -> i32 {
+pub fn exec_rshell_builtin(shell: &mut Shell, pipeline: Pipeline) -> i32 {
     0
 }
 
-pub fn exec_external() {
+pub fn exec_uutils_builtin() {
     
 }
 
