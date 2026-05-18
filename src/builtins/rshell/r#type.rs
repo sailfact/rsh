@@ -2,14 +2,14 @@ use crate::shell::Shell;
 use super::Builtin;
 use std::env;
 
-pub struct Export;
+pub struct Type;
 
-impl Builtin for Export {
-    fn name(&self) -> &str { "export" }
+impl Builtin for Type {
+    fn name(&self) -> &str { "type" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         // Todo
-        println!("export not implemented");
+        println!("type: no implemented");
         0
     }
 }
