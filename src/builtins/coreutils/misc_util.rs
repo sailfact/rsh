@@ -1,10 +1,11 @@
 use std::ffi::OsString;
 
+
 pub const COMMANDS: &[&str] = &[
     "seq", "factor", "basename", "dirname", "realpath",
     "pathchk", "link", "unlink", "sync", "truncate",
     "shuf", "comm", "csplit", "split", "tee",
-    "test", "[", "expr", "xargs",
+    "test", "[", "expr",
 ];
 
 pub fn dispatch(name: &str, args: Vec<OsString>) -> i32 {
