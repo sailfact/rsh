@@ -13,21 +13,23 @@ use crate::parser::parser::Parser;
 use crate::executor;
 
 pub struct Shell {
-    pub jobs:        Vec<Job>,
-    pub aliases:     HashMap<String, String>,
-    pub env:         HashMap<String, String>,
-    pub registry:    Registry,
-    pub last_status: i32,
+    pub jobs:           Vec<Job>,
+    pub aliases:        HashMap<String, String>,
+    pub env:            HashMap<String, String>,
+    pub registry:       Registry,
+    pub last_status:    i32,
+    pub prev_dir:       Option<String>,
 }
 
 impl Shell {
     pub fn new() -> Self {
         Shell {
-            jobs:        Vec::new(),
-            aliases:     HashMap::new(),
-            env:         env::vars().collect(),
-            registry:    Registry::new(),
-            last_status: 0,
+            jobs:           Vec::new(),
+            aliases:        HashMap::new(),
+            env:            env::vars().collect(),
+            registry:       Registry::new(),
+            last_status:    0,
+            prev_dir:       None,
         }
     }
 
