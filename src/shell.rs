@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::env;
 use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
 use nix::unistd::Pid;
+use std::path::PathBuf;
+use std::os::unix::io::RawFd;
 
 use crate::builtins;
 use crate::repl::{Repl, ReadResult, ReplError};
@@ -13,21 +15,39 @@ use crate::parser::parser::Parser;
 use crate::executor;
 
 pub struct Shell {
-    pub jobs:           Vec<Job>,
-    pub aliases:        HashMap<String, String>,
-    pub env:            HashMap<String, String>,
-    pub last_status:    i32,
-    pub prev_dir:       Option<String>,
+    pub jobs: Vec<Job>,
+    pub aliases: HashMap<String, String>,
+    pub variables: HashMap<String, String>,   // unexported shell vars
+    pub functions: HashMap<String, String>,   // function bodies
+    pub history: Vec<String>,
+    pub hash_table: HashMap<String, PathBuf>, // command lookup cache
+    pub env: HashMap<String, String>,
+    pub last_status: i32,
+    pub prev_dir: Option<String>,
+    pub options: HashMap<String, bool>,       // set -e, set -x, etc.
+    pub traps: HashMap<i32, String>,          // signal -> command
+    pub umask: u32,
+    pub shell_pgid: Pid,
+    pub tty_fd: RawFd,
 }
 
 impl Shell {
     pub fn new() -> Self {
         Shell {
-            jobs:           Vec::new(),
-            aliases:        HashMap::new(),
-            env:            env::vars().collect(),
-            last_status:    0,
-            prev_dir:       None,
+            jobs: Vec::new(),
+            aliases: HashMap::new(),
+            variables: HashMap::new(),   // unexported shell vars
+            functions: HashMap::new(),   // function bodies
+            history: Vec::new(),
+            hash_table: HashMap::new(),
+            env: env::vars().collect(),
+            last_status: 0,
+            prev_dir: None,
+            options: HashMap::new(),       // set -e, set -x, etc.
+            traps: HashMap::new(),          // signal -> command
+            umask: 0o022,
+            shell_pgid: nix::unistd::getpgrp(),
+            tty_fd: 0,
         }
     }
 
