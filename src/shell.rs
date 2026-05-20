@@ -3,12 +3,12 @@ use std::env;
 use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
 use nix::unistd::Pid;
 
-use crate::builtins::rshell::Registry;
-use crate::{Token, builtins};
+use crate::builtins;
 use crate::repl::{Repl, ReadResult, ReplError};
 use crate::jobs::job::Job;
 use crate::jobs::process::ProcessStatus;
 use crate::lexer::lexer::Lexer;
+use crate::lexer::Token;
 use crate::parser::parser::Parser;
 use crate::executor;
 
@@ -16,7 +16,6 @@ pub struct Shell {
     pub jobs:           Vec<Job>,
     pub aliases:        HashMap<String, String>,
     pub env:            HashMap<String, String>,
-    pub registry:       Registry,
     pub last_status:    i32,
     pub prev_dir:       Option<String>,
 }
@@ -27,7 +26,6 @@ impl Shell {
             jobs:           Vec::new(),
             aliases:        HashMap::new(),
             env:            env::vars().collect(),
-            registry:       Registry::new(),
             last_status:    0,
             prev_dir:       None,
         }
@@ -114,7 +112,7 @@ impl Shell {
         // Single rshell builtin — must run in the shell process
         if pipeline.commands.len() == 1 {
             let name = pipeline.commands[0].argv[0].as_str();
-            if builtins::is_shell_builtin(name) {
+            if builtins::is_rshell_builtin(name) {
                 return builtins::exec_shell_builtin(&pipeline.commands[0], self);
             }
         }

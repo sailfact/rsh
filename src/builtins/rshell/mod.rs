@@ -23,11 +23,12 @@ pub mod history;
 
 
 
+use std::sync::OnceLock;
 use std::collections::HashMap;
 use crate::ast::Command;
 use crate::shell::Shell;
 
-pub trait Builtin {
+pub trait Builtin: Send + Sync {
     fn name(&self) -> &'static str;
     fn run(&self, args: &[String], shell: &mut Shell) -> i32;
 }
@@ -79,39 +80,19 @@ impl Registry {
     }
 }
 
+static REGISTRY: OnceLock<Registry> = OnceLock::new();
+
+fn global_registry() -> &'static Registry {
+    REGISTRY.get_or_init(Registry::new)
+}
+
+
 pub fn dispatch(cmd: &Command, shell: &mut Shell) -> i32 {
     let name = cmd.argv[0].as_str();
-    let args = &cmd.argv[1..];
 
-    match name {
-        "cd"      => cd::Cd.run(args, shell),
-        "exit"    => exit::Exit.run(args, shell),
-        "alias"   => alias::Alias.run(args, shell),
-        "unalias" => alias::Unalias.run(args, shell),
-        "export"  => export::Export.run(args, shell),
-        "unset"   => unset::Unset.run(args, shell),
-        "set"     => set::Set.run(args, shell),
-        "shift"   => set::Shift.run(args, shell),
-        "source"  => source::Source.run(args, shell),
-        "."       => source::Dot.run(args, shell),
-        "return"  => source::Return.run(args, shell),
-        "jobs"    => jobs::Jobs.run(args, shell),
-        "fg"      => fg::Fg.run(args, shell),
-        "bg"      => bg::Bg.run(args, shell),
-        "wait"    => wait::Wait.run(args, shell),
-        "kill"    => kill::Kill.run(args, shell),
-        "trap"    => trap::Trap.run(args, shell),
-        "umask"   => umask::Umask.run(args, shell),
-        "read"    => read::Read.run(args, shell),
-        "exec"    => exec::Exec.run(args, shell),
-        "pwd"     => pwd::Pwd.run(args, shell),
-        "hash"    => hash::Hash.run(args, shell),
-        "history" => history::History.run(args, shell),
-        "ps"      => ps::Ps.run(args, shell),
-        "type"    => r#type::Type.run(args, shell),
-        _ => {
-            eprintln!("rsh: unknown builtin: {}", name);
-            1
-        }
+    // Build the Registry and lookup the builtin
+    match global_registry().get(name) {
+        Some(builtin) => builtin.run(&cmd.argv, shell),
+        None => { eprintln!("rsh: unknown builtin: {}", name); 1 }
     }
 }
