@@ -1,6 +1,5 @@
 use crate::shell::Shell;
 use super::Builtin;
-use std::env;
 
 pub struct Cd;
 
