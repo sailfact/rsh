@@ -4,7 +4,7 @@ use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
 use nix::unistd::Pid;
 
 use crate::builtins::rshell::Registry;
-use crate::builtins;
+use crate::{Token, builtins};
 use crate::repl::{Repl, ReadResult, ReplError};
 use crate::jobs::job::Job;
 use crate::jobs::process::ProcessStatus;
@@ -66,34 +66,18 @@ impl Shell {
         let input = self.expand_aliases(input);
         let tokens = Lexer::new(&input).tokenize();
 
-        let pipeline = Parser::new(tokens).parse();
+        // Split token stream on semicolons -> one Vec<Token> per Pipeline
+        let segments: Vec<Vec<Token>> = tokens
+            .split(|t| t == &Token::Semicolon)
+            .map(|s| s.to_vec())
+            .filter(|s| !s.is_empty()) // ignore tailing ";"
+            .collect();
 
-        if pipeline.commands.is_empty() {
-            return 0;
+        let mut last = 0;
+        for segment in segments {
+            last = self.eval_tokens(segment);
         }
-
-        // Trivial commands — inline, no registry entry
-        if pipeline.commands.len() == 1 {
-            match pipeline.commands[0].argv[0].as_str() {
-                "true"     => return 0,
-                "false"    => return 1,
-                "break"    => return 128,
-                "continue" => return 129,
-                _          => {}
-            }
-        }
-
-        // Single rshell builtin — must run in the shell process
-        // to be able to mutate Shell state (aliases, env, jobs etc.)
-        if pipeline.commands.len() == 1 {
-            let name = pipeline.commands[0].argv[0].as_str();
-            if builtins::is_shell_builtin(name) {
-                return builtins::exec_shell_builtin(&pipeline.commands[0], self);
-            }
-        }
-
-        // Everything else — pipelines, uutils, external commands
-        executor::execute(self, pipeline)
+        last
     }
 
     fn expand_aliases(&self, input: &str) -> String {
@@ -107,6 +91,36 @@ impl Shell {
         } else {
             input.to_string()
         }
+    }
+
+    fn eval_tokens(&mut self, tokens: Vec<Token>) -> i32 {
+        let pipeline = Parser::new(tokens).parse();
+
+        if pipeline.commands.is_empty() {
+            return 0;
+        }
+
+        // Trivial inline commands
+        if pipeline.commands.len() == 1 {
+            match pipeline.commands[0].argv[0].as_str() {
+                "true"     => return 0,
+                "false"    => return 1,
+                "break"    => return 128,
+                "continue" => return 129,
+                _          => {}
+            }
+        }
+
+        // Single rshell builtin — must run in the shell process
+        if pipeline.commands.len() == 1 {
+            let name = pipeline.commands[0].argv[0].as_str();
+            if builtins::is_shell_builtin(name) {
+                return builtins::exec_shell_builtin(&pipeline.commands[0], self);
+            }
+        }
+
+        // Everything else — pipelines, uutils, external
+        executor::execute(self, pipeline)
     }
 
     pub fn reap(&mut self) {
