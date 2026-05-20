@@ -29,6 +29,19 @@
 
 ## uutils Coreutils (via uu_* crates or PATH)
 These are safe to fork() + run in-process as library calls. Grouped by what you'll actually reach for:
+### Cargo.toml
+```toml
+[dependencies]
+uu_ls    = "0.0.28"
+uu_cat   = "0.0.28"
+uu_cp    = "0.0.28"
+uu_rm    = "0.0.28"
+uu_mkdir = "0.0.28"
+uu_echo  = "0.0.28"
+# etc. — pick only what you need
+uucore   = "0.0.28"
+...
+```
 ### File operations 
 |Crate            | Commands        |
 |-----------------|-----------------|
@@ -47,37 +60,6 @@ These are safe to fork() + run in-process as library calls. Grouped by what you'
 |```uu_df```      |```df```         |
 |```uu_install``` |```install```    |
 |```uu_mktemp```  |```mktemp```     |
-#### Cargo.toml
-```toml
-[dependencies]
-uu_ls    = "0.0.28"
-uu_cat   = "0.0.28"
-uu_cp    = "0.0.28"
-uu_rm    = "0.0.28"
-uu_mkdir = "0.0.28"
-uu_echo  = "0.0.28"
-# etc. — pick only what you need
-uucore   = "0.0.28"
-```
-#### command.rs
-```rust
-const UUTILS_COREUTILS_COMMANDS: &[&str] = &[
-    "cp", 
-    "mv",
-    "rm",
-    "mkdir",
-    "rmdir",
-    "touch",
-    "ln",
-    "chmod",
-    "chown",
-    "stat",
-    "du",
-    "df",
-    "install",
-    "mktemp",    
-];
-```
 
 ### Text processing
 |Crate  |Commands|
@@ -96,14 +78,7 @@ const UUTILS_COREUTILS_COMMANDS: &[&str] = &[
 |```uu_join```|```join```|
 |```uu_fold```|```fold```|
 |```uu_fmt```|```fmt```|
-|```uu_n```|```nl```|
 |```uu_tac```|```tac```|
-|```uu_rev```|```rev```|
-|```uu_expand```|```expand``` (tabs→spaces)|
-|```uu_unexpand```|```unexpand```|
-|```uu_od```|```od```|
-|```uu_xxd```|```xxd```|
-|```uu_grep```|```grep``` (uutils has this but it's separate — uutils/grep)|
 
 ### System / process info
 |Crate|Commands|
@@ -152,6 +127,5 @@ const UUTILS_COREUTILS_COMMANDS: &[&str] = &[
 |`uu_csplit`|`csplit`|
 |`uu_split`|`split`|
 |`uu_tee`|`tee` (great one to embed — interacts with your pipe setup)|
-|`uu_xargs`|xargs (in uutils/findutils)|
 |`uu_test` / `uu_[`|`test` / `[` (essential for scripting support)|
-|`uu_expr`|expr|
+|`uu_expr`|`expr`|

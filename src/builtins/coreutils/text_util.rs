@@ -3,7 +3,6 @@ use std::ffi::OsString;
 pub const COMMANDS: &[&str] = &[
     "cat", "echo", "printf", "head", "tail", "wc", "sort",
     "uniq", "cut", "tr", "paste", "join", "fold", "fmt",
-    "nl", "tac", "rev", "expand", "unexpand", "od", "xxd", "grep",
 ];
 
 pub fn dispatch(name: &str, args: Vec<OsString>) -> i32 {

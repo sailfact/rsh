@@ -7,7 +7,7 @@ use crate::shell::Shell;
 
 // ── Lookup tables ─────────────────────────────────────────────────────────────
 // These are the single source of truth for command routing.
-// executor.rs calls is_shell_builtin() / is_uutils_builtin() to decide
+// executor.rs calls is_rshell_builtin() / is_uutils_builtin() to decide
 // whether to fork and which dispatcher to call.
 
 pub const SHELL_BUILTINS: &[&str] = &[
@@ -44,7 +44,7 @@ pub const UUTILS_BUILTINS: &[&str] = &[
 
 // ── Routing ───────────────────────────────────────────────────────────────────
 
-pub fn is_shell_builtin(name: &str) -> bool {
+pub fn is_rshell_builtin(name: &str) -> bool {
     SHELL_BUILTINS.contains(&name)
 }
 
@@ -53,7 +53,7 @@ pub fn is_uutils_builtin(name: &str) -> bool {
 }
 
 pub fn is_any_builtin(name: &str) -> bool {
-    is_shell_builtin(name) || is_uutils_builtin(name)
+    is_rshell_builtin(name) || is_uutils_builtin(name)
 }
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────
@@ -67,8 +67,8 @@ pub fn exec_shell_builtin(cmd: &Command, shell: &mut Shell) -> i32 {
     match cmd.argv[0].as_str() {
         "true"     => return 0,
         "false"    => return 1,
-        "break"    => return 128,  // scripting layer checks sentinel
-        "continue" => return 129,  //
+        "break"    => return 128,  
+        "continue" => return 129,  
         _ => {}
     }
 
