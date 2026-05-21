@@ -17,6 +17,7 @@ use crate::lexer::Token;
 use crate::parser::parser::Parser;
 use crate::repl::{Repl, ReadResult, ReplError};
 
+// TODO Add is_login and is_interactive to Shell and detect them in new():
 pub struct Shell {
     pub jobs:        Vec<Job>,
     pub aliases:     HashMap<String, String>,
@@ -35,6 +36,7 @@ pub struct Shell {
 }
 
 impl Shell {
+    // TODO and detect is_login and is_iteractive in new():
     pub fn new() -> Self {
         let shell_pgid = nix::unistd::getpgrp();
         Shell {
@@ -55,6 +57,7 @@ impl Shell {
         }
     }
 
+    // TODO update run() to  use source_file_if_exists()
     pub fn run(&mut self) -> Result<(), ReplError> {
         let mut repl = Repl::new(String::from("rsh> "))?
             .with_history("~/.rsh_history");
@@ -156,7 +159,15 @@ impl Shell {
         executor::execute(self, pipeline)
     }
 
-    // environment helpers
+    // Environment Helpers
+    // TODO 
+    // Create Functions: 
+    //  - fn source_file_if_exists(&mut self, path: &str)
+    //  - pub fn install_defaults(&self)
+    // Create Default Files: 
+    //  - src/defaults/rsh_profile
+    //  - src/defaults/rshrc
+    //  - src/defaults/rsh_logout
     pub fn set_env(&mut self, key: &str, value: &str) {
         self.env.insert(key.to_string(), value.to_string());
         unsafe {
