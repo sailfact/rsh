@@ -1,15 +1,17 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 use std::io::{self, BufRead, Write};
 
 pub struct Read;
 
 impl Builtin for Read {
-    fn name(&self) -> &'static str { "read" }
+    fn name(&self) -> &'static str {
+        "read"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
-        let mut raw     = false;
-        let mut prompt  = String::new();
+        let mut raw = false;
+        let mut prompt = String::new();
         let mut varnames: Vec<&str> = Vec::new();
 
         let mut iter = args[1..].iter();
@@ -42,23 +44,31 @@ impl Builtin for Read {
         }
 
         // strip trailing newline
-        if line.ends_with('\n') { line.pop(); }
-        if line.ends_with('\r') { line.pop(); }
+        if line.ends_with('\n') {
+            line.pop();
+        }
+        if line.ends_with('\r') {
+            line.pop();
+        }
 
         // backslash-newline continuation (unless -r)
         if !raw {
-            line = line.replace("\\n", "\n")
-                       .replace("\\t", "\t")
-                       .replace("\\\\", "\\");
+            line = line
+                .replace("\\n", "\n")
+                .replace("\\t", "\t")
+                .replace("\\\\", "\\");
         }
 
         // split on IFS (default space/tab)
-        let ifs = shell.variables.get("IFS")
+        let ifs = shell
+            .variables
+            .get("IFS")
             .cloned()
             .unwrap_or_else(|| " \t".to_string());
 
         let split_fn = |c: char| ifs.contains(c);
-        let mut parts: Vec<String> = line.splitn(varnames.len(), split_fn)
+        let mut parts: Vec<String> = line
+            .splitn(varnames.len(), split_fn)
             .map(str::to_string)
             .collect();
 

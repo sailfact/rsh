@@ -1,5 +1,5 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 
 pub struct Source;
 pub struct Dot;
@@ -37,31 +37,37 @@ pub fn run(args: &[String], shell: &mut Shell) -> i32 {
 }
 
 impl Builtin for Source {
-    fn name(&self) -> &'static str { "source" }
+    fn name(&self) -> &'static str {
+        "source"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.len() < 2 {
             eprintln!("source: usage: source file [args...]");
             return 1;
         }
-        run(&args[1..].to_vec(), shell)
+        run(&args[1..], shell)
     }
 }
 
 impl Builtin for Dot {
-    fn name(&self) -> &'static str { "." }
+    fn name(&self) -> &'static str {
+        "."
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.len() < 2 {
             eprintln!(".: usage: . file [args...]");
             return 1;
         }
-        run(&args[1..].to_vec(), shell)
+        run(&args[1..], shell)
     }
 }
 
 impl Builtin for Return {
-    fn name(&self) -> &'static str { "return" }
+    fn name(&self) -> &'static str {
+        "return"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         args.get(1)

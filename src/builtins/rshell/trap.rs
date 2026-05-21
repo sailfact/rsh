@@ -1,10 +1,12 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 
 pub struct Trap;
 
 impl Builtin for Trap {
-    fn name(&self) -> &'static str { "trap" }
+    fn name(&self) -> &'static str {
+        "trap"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.len() < 2 {
@@ -40,8 +42,10 @@ impl Builtin for Trap {
         let mut status = 0;
         for sig_name_str in &args[2..] {
             match sig_number(sig_name_str) {
-                Some(n) => { shell.traps.insert(n, action.clone()); }
-                None    => {
+                Some(n) => {
+                    shell.traps.insert(n, action.clone());
+                }
+                None => {
                     eprintln!("trap: {}: invalid signal", sig_name_str);
                     status = 1;
                 }
@@ -57,10 +61,14 @@ fn sig_number(name: &str) -> Option<i32> {
         return Some(n);
     }
     let upper = name.to_uppercase();
-    let canon = if upper.starts_with("SIG") { upper.clone() } else { format!("SIG{}", upper) };
+    let canon = if upper.starts_with("SIG") {
+        upper.clone()
+    } else {
+        format!("SIG{}", upper)
+    };
     match canon.as_str() {
-        "SIGHUP"  => Some(1),
-        "SIGINT"  => Some(2),
+        "SIGHUP" => Some(1),
+        "SIGINT" => Some(2),
         "SIGQUIT" => Some(3),
         "SIGKILL" => Some(9),
         "SIGTERM" => Some(15),
@@ -72,18 +80,18 @@ fn sig_number(name: &str) -> Option<i32> {
         "SIGUSR1" => Some(10),
         "SIGUSR2" => Some(12),
         "SIGCHLD" => Some(17),
-        "EXIT"    => Some(0),
-        _         => None,
+        "EXIT" => Some(0),
+        _ => None,
     }
 }
 
 fn sig_name(n: i32) -> String {
     match n {
-        0  => "EXIT".to_string(),
-        1  => "HUP".to_string(),
-        2  => "INT".to_string(),
-        3  => "QUIT".to_string(),
-        9  => "KILL".to_string(),
+        0 => "EXIT".to_string(),
+        1 => "HUP".to_string(),
+        2 => "INT".to_string(),
+        3 => "QUIT".to_string(),
+        9 => "KILL".to_string(),
         13 => "PIPE".to_string(),
         14 => "ALRM".to_string(),
         15 => "TERM".to_string(),
@@ -93,6 +101,6 @@ fn sig_name(n: i32) -> String {
         20 => "TSTP".to_string(),
         10 => "USR1".to_string(),
         12 => "USR2".to_string(),
-        _  => n.to_string(),
+        _ => n.to_string(),
     }
 }

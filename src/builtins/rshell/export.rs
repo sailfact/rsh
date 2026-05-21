@@ -1,10 +1,12 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 
 pub struct Export;
 
 impl Builtin for Export {
-    fn name(&self) -> &'static str { "export" }
+    fn name(&self) -> &'static str {
+        "export"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.len() == 1 || (args.len() == 2 && args[1] == "-p") {

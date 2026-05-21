@@ -1,10 +1,12 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 
 pub struct Ps;
 
 impl Builtin for Ps {
-    fn name(&self) -> &'static str { "ps" }
+    fn name(&self) -> &'static str {
+        "ps"
+    }
 
     fn run(&self, _args: &[String], _shell: &mut Shell) -> i32 {
         println!("ps: not implemented");

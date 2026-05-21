@@ -1,16 +1,16 @@
-use crate::lexer::Token;
-use super::Pipeline;
 use super::Command;
+use super::Pipeline;
 use super::Redirect;
+use crate::lexer::Token;
 
 pub struct Parser {
     tokens: Vec<Token>,
 }
 
 // imple Parser
-impl Parser{
+impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens: tokens }
+        Self { tokens }
     }
     pub fn parse(&mut self) -> Pipeline {
         let mut cmds: Vec<Command> = Vec::new();
@@ -22,7 +22,8 @@ impl Parser{
         }
 
         // split token stream on Pipe boundaries into per-command slices
-        let segments: Vec<Vec<Token>> = self.tokens
+        let segments: Vec<Vec<Token>> = self
+            .tokens
             .split(|t| t == &Token::Pipe)
             .map(|s| s.to_vec())
             .collect();
@@ -39,8 +40,16 @@ impl Parser{
 
     fn parse_command(&self, tokens: Vec<Token>, is_first: bool, is_last: bool) -> Command {
         let mut argv: Vec<String> = Vec::new();
-        let mut stdin  = if is_first { Redirect::Inherit } else { Redirect::Pipe };
-        let mut stdout = if is_last  { Redirect::Inherit } else { Redirect::Pipe };
+        let mut stdin = if is_first {
+            Redirect::Inherit
+        } else {
+            Redirect::Pipe
+        };
+        let mut stdout = if is_last {
+            Redirect::Inherit
+        } else {
+            Redirect::Pipe
+        };
 
         let mut iter = tokens.into_iter().peekable();
 

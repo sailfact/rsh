@@ -1,10 +1,12 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 
 pub struct Hash;
 
 impl Builtin for Hash {
-    fn name(&self) -> &'static str { "hash" }
+    fn name(&self) -> &'static str {
+        "hash"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         let mut iter = args[1..].iter().peekable();
@@ -33,17 +35,15 @@ impl Builtin for Hash {
                         status = 1;
                     }
                 }
-                name => {
-                    match shell.resolve_command(name) {
-                        Some(path) => {
-                            shell.hash_table.insert(name.to_string(), path);
-                        }
-                        None => {
-                            eprintln!("hash: {}: not found", name);
-                            status = 1;
-                        }
+                name => match shell.resolve_command(name) {
+                    Some(path) => {
+                        shell.hash_table.insert(name.to_string(), path);
                     }
-                }
+                    None => {
+                        eprintln!("hash: {}: not found", name);
+                        status = 1;
+                    }
+                },
             }
         }
         status

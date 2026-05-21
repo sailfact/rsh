@@ -4,10 +4,10 @@ pub mod process;
 pub use job::{Job, JobStatus};
 pub use process::{Process, ProcessStatus};
 
-pub use std::sync::atomic::{AtomicBool, Ordering};
+pub use nix::sys::signal::{SaFlags, SigAction, SigHandler, SigSet, Signal, sigaction};
+pub use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
 pub use nix::unistd::Pid;
-pub use nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler, SigSet, Signal};
-pub use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
+pub use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(test)]
 mod tests {

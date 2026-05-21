@@ -1,12 +1,14 @@
+use super::Builtin;
 use crate::shell::Shell;
 use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
-use super::Builtin;
 
 pub struct Kill;
 
 impl Builtin for Kill {
-    fn name(&self) -> &'static str { "kill" }
+    fn name(&self) -> &'static str {
+        "kill"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.len() < 2 {
@@ -24,15 +26,16 @@ impl Builtin for Kill {
         let mut iter = args[1..].iter().peekable();
         let mut sig = Signal::SIGTERM;
 
-        if let Some(first) = iter.peek() {
-            if first.starts_with('-') {
-                let s = &first[1..];
-                match parse_signal(s) {
-                    Some(parsed) => { sig = parsed; iter.next(); }
-                    None => {
-                        eprintln!("kill: {}: invalid signal specification", s);
-                        return 1;
-                    }
+        if let Some(first) = iter.peek().filter(|f| f.starts_with('-')) {
+            let s = first.strip_prefix('-').unwrap_or(first);
+            match parse_signal(s) {
+                Some(parsed) => {
+                    sig = parsed;
+                    iter.next();
+                }
+                None => {
+                    eprintln!("kill: {}: invalid signal specification", s);
+                    return 1;
                 }
             }
         }
@@ -83,8 +86,8 @@ fn parse_signal(s: &str) -> Option<Signal> {
         format!("SIG{}", upper)
     };
     match name.as_str() {
-        "SIGHUP"  => Some(Signal::SIGHUP),
-        "SIGINT"  => Some(Signal::SIGINT),
+        "SIGHUP" => Some(Signal::SIGHUP),
+        "SIGINT" => Some(Signal::SIGINT),
         "SIGQUIT" => Some(Signal::SIGQUIT),
         "SIGKILL" => Some(Signal::SIGKILL),
         "SIGTERM" => Some(Signal::SIGTERM),
@@ -96,16 +99,28 @@ fn parse_signal(s: &str) -> Option<Signal> {
         "SIGUSR1" => Some(Signal::SIGUSR1),
         "SIGUSR2" => Some(Signal::SIGUSR2),
         "SIGCHLD" => Some(Signal::SIGCHLD),
-        _         => None,
+        _ => None,
     }
 }
 
 fn print_signal_list() {
     let sigs = [
-        (1,  "HUP"),  (2,  "INT"),  (3,  "QUIT"), (4,  "ILL"),
-        (6,  "ABRT"), (8,  "FPE"),  (9,  "KILL"), (11, "SEGV"),
-        (13, "PIPE"), (14, "ALRM"), (15, "TERM"), (17, "CHLD"),
-        (18, "CONT"), (19, "STOP"), (20, "TSTP"), (10, "USR1"),
+        (1, "HUP"),
+        (2, "INT"),
+        (3, "QUIT"),
+        (4, "ILL"),
+        (6, "ABRT"),
+        (8, "FPE"),
+        (9, "KILL"),
+        (11, "SEGV"),
+        (13, "PIPE"),
+        (14, "ALRM"),
+        (15, "TERM"),
+        (17, "CHLD"),
+        (18, "CONT"),
+        (19, "STOP"),
+        (20, "TSTP"),
+        (10, "USR1"),
         (12, "USR2"),
     ];
     for (n, name) in &sigs {

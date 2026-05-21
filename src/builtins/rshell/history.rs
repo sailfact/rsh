@@ -1,10 +1,12 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 
 pub struct History;
 
 impl Builtin for History {
-    fn name(&self) -> &'static str { "history" }
+    fn name(&self) -> &'static str {
+        "history"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.get(1).map(String::as_str) == Some("-c") {
@@ -12,7 +14,8 @@ impl Builtin for History {
             return 0;
         }
 
-        let limit: usize = args.get(1)
+        let limit: usize = args
+            .get(1)
             .and_then(|s| s.parse().ok())
             .unwrap_or(shell.history.len());
 

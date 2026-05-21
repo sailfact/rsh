@@ -1,10 +1,12 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 
 pub struct Unset;
 
 impl Builtin for Unset {
-    fn name(&self) -> &'static str { "unset" }
+    fn name(&self) -> &'static str {
+        "unset"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.len() < 2 {
@@ -12,15 +14,14 @@ impl Builtin for Unset {
         }
 
         let mut funcs_only = false;
-        let mut vars_only  = false;
+        let mut vars_only = false;
         let mut names: Vec<&str> = Vec::new();
 
-        let mut iter = args[1..].iter();
-        while let Some(arg) = iter.next() {
+        for arg in &args[1..] {
             match arg.as_str() {
                 "-f" => funcs_only = true,
-                "-v" => vars_only  = true,
-                _    => names.push(arg.as_str()),
+                "-v" => vars_only = true,
+                _ => names.push(arg.as_str()),
             }
         }
 

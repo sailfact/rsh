@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
+use rustyline::error::ReadlineError;
+use std::path::PathBuf;
 use thiserror::Error;
 
 // REPL - Read, Eval, Print, Loop
@@ -8,12 +8,11 @@ use thiserror::Error;
 // Eval — parse and execute that line
 // Print — show the output (or prompt for the next command)
 // Loop — go back to the start
-pub struct Repl{
-    editor:         DefaultEditor,
-    history:   Option<PathBuf>,
-    prompt:         String,
+pub struct Repl {
+    editor: DefaultEditor,
+    history: Option<PathBuf>,
+    prompt: String,
 }
-
 
 #[derive(Debug, Error)]
 pub enum ReplError {
@@ -46,12 +45,12 @@ impl Repl {
         // Create Default Editor
         let editor = DefaultEditor::new().map_err(ReplError::ReadLine)?;
         // Set prompt if none provided
-        let prompt = if prompt.is_empty() { 
-            String::from("rsh> ") 
-        } else { 
-            prompt 
+        let prompt = if prompt.is_empty() {
+            String::from("rsh> ")
+        } else {
+            prompt
         };
-        
+
         Ok(Self {
             editor,
             history: None,
@@ -59,10 +58,9 @@ impl Repl {
         })
     }
     pub fn with_history(mut self, path: &str) -> Self {
-        let resolved = if path.starts_with("~/") {
-            let home = std::env::var("HOME")
-                .unwrap_or_else(|_| String::from("."));
-            PathBuf::from(format!("{}/{}", home, &path[2..]))
+        let resolved = if let Some(rest) = path.strip_prefix("~/") {
+            let home = std::env::var("HOME").unwrap_or_else(|_| String::from("."));
+            PathBuf::from(format!("{}/{}", home, rest))
         } else {
             PathBuf::from(path)
         };
@@ -79,18 +77,16 @@ impl Repl {
                 }
             }
             Err(e) => {
-                eprintln!("rsh: warning: could not load history: {e}");  // ← missing
+                eprintln!("rsh: warning: could not load history: {e}"); // ← missing
             }
         }
         self.history = Some(resolved);
-        self 
+        self
     }
 
     pub fn read_line(&mut self) -> Result<ReadResult, ReplError> {
         match self.editor.readline(&self.prompt) {
-            Ok(line) => {
-                Ok(ReadResult::Line(line))
-            }
+            Ok(line) => Ok(ReadResult::Line(line)),
             Err(ReadlineError::Interrupted) => Ok(ReadResult::Interrupted),
             Err(ReadlineError::Eof) => Ok(ReadResult::Eof),
             Err(e) => Err(ReplError::ReadLine(e)),
@@ -105,7 +101,7 @@ impl Repl {
         self.prompt = prompt;
     }
 
-    pub fn save_history(&mut self) -> Result<(), ReplError>{
+    pub fn save_history(&mut self) -> Result<(), ReplError> {
         if let Some(ref path) = self.history {
             self.editor
                 .save_history(path)
@@ -116,5 +112,4 @@ impl Repl {
         }
         Ok(())
     }
-
-}  
+}

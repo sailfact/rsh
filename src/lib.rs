@@ -3,18 +3,18 @@
 // Repo: https://github.com/sailfact/rsh.git
 
 pub mod ast;
-pub mod lexer;
-pub mod parser;
 pub mod builtins;
-pub mod shell;
-pub mod repl;
 pub mod executor;
 pub mod external;
 pub mod jobs;
+pub mod lexer;
+pub mod parser;
+pub mod repl;
+pub mod shell;
 
-pub use shell::Shell;
 pub use repl::Repl;
 pub use repl::{ReadResult, ReplError};
+pub use shell::Shell;
 
 // builtins module
 
@@ -27,8 +27,8 @@ pub use lexer::tokenize;
 pub use parser::parser::Parser;
 
 // ast module
-pub use ast::pipeline::Pipeline;
 pub use ast::command::Command;
+pub use ast::pipeline::Pipeline;
 pub use ast::redirect::Redirect;
 
 // jobs module

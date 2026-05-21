@@ -1,10 +1,12 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 
 pub struct Cd;
 
 impl Builtin for Cd {
-    fn name(&self) -> &'static str { "cd" }
+    fn name(&self) -> &'static str {
+        "cd"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         //handle cd ~
@@ -19,11 +21,7 @@ impl Builtin for Cd {
 
         let old = std::env::current_dir()
             .ok()
-            .map(
-                |p| 
-                p.to_string_lossy()
-                .into_owned()
-            );
+            .map(|p| p.to_string_lossy().into_owned());
         // handle cd -
         if dir == "-" {
             dir = shell.prev_dir.clone().unwrap_or_default();
@@ -31,8 +29,11 @@ impl Builtin for Cd {
         }
         shell.prev_dir = old;
         match std::env::set_current_dir(&dir) {
-            Ok(_)  => 0,
-            Err(e) => { eprintln!("cd: {}: {}", &dir, e); 1 }
+            Ok(_) => 0,
+            Err(e) => {
+                eprintln!("cd: {}: {}", &dir, e);
+                1
+            }
         }
     }
 }

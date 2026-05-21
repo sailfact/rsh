@@ -1,10 +1,12 @@
-use crate::shell::Shell;
 use super::Builtin;
+use crate::shell::Shell;
 
 pub struct Wait;
 
 impl Builtin for Wait {
-    fn name(&self) -> &'static str { "wait" }
+    fn name(&self) -> &'static str {
+        "wait"
+    }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         if args.len() < 2 {
@@ -49,20 +51,20 @@ impl Builtin for Wait {
 }
 
 fn wait_pid(pid: nix::unistd::Pid) -> i32 {
-    use nix::sys::wait::{waitpid, WaitStatus};
+    use nix::sys::wait::{WaitStatus, waitpid};
     loop {
         match waitpid(pid, None) {
-            Ok(WaitStatus::Exited(_, code))     => return code,
+            Ok(WaitStatus::Exited(_, code)) => return code,
             Ok(WaitStatus::Signaled(_, sig, _)) => return 128 + sig as i32,
-            Ok(_)  => continue,
+            Ok(_) => continue,
             Err(_) => return 1,
         }
     }
 }
 
 fn wait_pgid(shell: &mut Shell, pgid: nix::unistd::Pid) -> i32 {
-    use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
     use crate::jobs::process::ProcessStatus;
+    use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
 
     let mut last = 0;
     loop {
@@ -80,10 +82,7 @@ fn wait_pgid(shell: &mut Shell, pgid: nix::unistd::Pid) -> i32 {
             }
             Ok(WaitStatus::StillAlive) => {
                 // use blocking wait when WNOHANG says still alive
-                match waitpid(
-                    nix::unistd::Pid::from_raw(-pgid.as_raw()),
-                    None,
-                ) {
+                match waitpid(nix::unistd::Pid::from_raw(-pgid.as_raw()), None) {
                     Ok(WaitStatus::Exited(pid, code)) => {
                         shell.update_process(pid, ProcessStatus::Exited(code));
                         last = code;
@@ -98,10 +97,14 @@ fn wait_pgid(shell: &mut Shell, pgid: nix::unistd::Pid) -> i32 {
             _ => break,
         }
 
-        let still_running = shell.jobs.iter()
+        let still_running = shell
+            .jobs
+            .iter()
             .filter(|j| j.pgid == pgid)
             .any(|j| !j.is_done());
-        if !still_running { break; }
+        if !still_running {
+            break;
+        }
     }
     last
 }
