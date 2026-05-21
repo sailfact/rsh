@@ -64,12 +64,6 @@ impl Lexer {
                         tokens.push(Token::RedirectOut);
                     }
                 }
-                '\'' | '"' => {
-                    // quoted string
-                    let word = self.read_quoted();
-                    tokens.push(Token::Word(word));
-                }
-                // All other values are a work
                 _ => {
                     let word = self.read_word();
                     tokens.push(Token::Word(word));
@@ -78,12 +72,14 @@ impl Lexer {
         }
         tokens
     }
-    // Read an unquoted word — stops at whitespace or an operator character.
+    // Read a word — unquoted and quoted runs with no intervening whitespace
+    // glue together into a single token (so `ll='ls -la'` is one word).
     fn read_word(&mut self) -> String {
         let mut word = String::new();
         while let Some(ch) = self.peek() {
             match ch {
-                ' ' | '\t' | '|' | '&' | ';' | '<' | '>' | '\'' | '"' => break,
+                ' ' | '\t' | '|' | '&' | ';' | '<' | '>' => break,
+                '\'' | '"' => word.push_str(&self.read_quoted()),
                 _ => {
                     word.push(ch);
                     self.advance();
