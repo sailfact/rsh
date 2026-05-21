@@ -3,10 +3,15 @@ use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 use thiserror::Error;
 
+// REPL - Read, Eval, Print, Loop
+// Read — wait for the user to type a line and press Enter
+// Eval — parse and execute that line
+// Print — show the output (or prompt for the next command)
+// Loop — go back to the start
 pub struct Repl{
-    editor: DefaultEditor,
-    history: Option<PathBuf>,
-    prompt: String,
+    editor:         DefaultEditor,
+    history:   Option<PathBuf>,
+    prompt:         String,
 }
 
 
@@ -41,7 +46,11 @@ impl Repl {
         // Create Default Editor
         let editor = DefaultEditor::new().map_err(ReplError::ReadLine)?;
         // Set prompt if none provided
-        let prompt = if prompt.is_empty() { String::from(">>>") } else { prompt };
+        let prompt = if prompt.is_empty() { 
+            String::from("rsh> ") 
+        } else { 
+            prompt 
+        };
         
         Ok(Self {
             editor,
@@ -51,20 +60,21 @@ impl Repl {
     }
     pub fn with_history(mut self, path: &str) -> Self {
         let resolved = if path.starts_with("~/") {
-        let home = std::env::var("HOME").unwrap_or_else(|_| String::from("."));
+            let home = std::env::var("HOME")
+                .unwrap_or_else(|_| String::from("."));
             PathBuf::from(format!("{}/{}", home, &path[2..]))
         } else {
             PathBuf::from(path)
         };
-        let pb = resolved;
-        match self.editor.load_history(&pb) {
+
+        match self.editor.load_history(&resolved) {
             Ok(_) => {}
             Err(ReadlineError::Io(ref e)) if e.kind() == std::io::ErrorKind::NotFound => {
                 // First run — create the file so save_history() works later
-                if let Some(parent) = pb.parent() {
+                if let Some(parent) = resolved.parent() {
                     let _ = std::fs::create_dir_all(parent);
                 }
-                if let Err(e) = std::fs::File::create(&pb) {
+                if let Err(e) = std::fs::File::create(&resolved) {
                     eprintln!("rsh: warning: could not create history file: {e}");
                 }
             }
@@ -72,14 +82,13 @@ impl Repl {
                 eprintln!("rsh: warning: could not load history: {e}");  // ← missing
             }
         }
-        self.history = Some(pb);
+        self.history = Some(resolved);
         self 
     }
 
     pub fn read_line(&mut self) -> Result<ReadResult, ReplError> {
         match self.editor.readline(&self.prompt) {
             Ok(line) => {
-                let _ = self.editor.add_history_entry(&line);
                 Ok(ReadResult::Line(line))
             }
             Err(ReadlineError::Interrupted) => Ok(ReadResult::Interrupted),
@@ -88,13 +97,24 @@ impl Repl {
         }
     }
 
+    pub fn add_history(&mut self, line: &str) {
+        let _ = self.editor.add_history_entry(line);
+    }
+
+    pub fn set_prompt(&mut self, prompt: String) {
+        self.prompt = prompt;
+    }
+
     pub fn save_history(&mut self) -> Result<(), ReplError>{
         if let Some(ref path) = self.history {
-            self.editor.save_history(path).map_err(|e| ReplError::SaveHistory {
-                path: path.display().to_string(),
-                source: e,
-            })?;
+            self.editor
+                .save_history(path)
+                .map_err(|e| ReplError::SaveHistory {
+                    path: path.display().to_string(),
+                    source: e,
+                })?;
         }
         Ok(())
     }
+
 }  
