@@ -1,48 +1,108 @@
+// std
 use std::collections::HashMap;
 use std::env;
-use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
+use std::os::unix::io::RawFd;
+use std::path::PathBuf;
+
+// nix
+use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
 use nix::unistd::Pid;
 
 use crate::builtins;
-use crate::repl::{Repl, ReadResult, ReplError};
+use crate::executor;
 use crate::jobs::job::Job;
 use crate::jobs::process::ProcessStatus;
-use crate::lexer::lexer::Lexer;
 use crate::lexer::Token;
+use crate::lexer::lexer::Lexer;
 use crate::parser::parser::Parser;
-use crate::executor;
+use crate::repl::{ReadResult, Repl, ReplError};
 
+// TODO Add is_login and is_interactive to Shell and detect them in new():
 pub struct Shell {
-    pub jobs:           Vec<Job>,
-    pub aliases:        HashMap<String, String>,
-    pub env:            HashMap<String, String>,
-    pub last_status:    i32,
-    pub prev_dir:       Option<String>,
+    pub jobs: Vec<Job>,
+    pub aliases: HashMap<String, String>,
+    pub env: HashMap<String, String>, // exported shell variables - inherited by chidren
+    pub variables: HashMap<String, String>, // unexported shell vars
+    pub functions: HashMap<String, String>, // shell function bodies
+    pub history: Vec<String>,         // canonical history, read by `history` builtin
+    pub last_status: i32,             // $?
+    pub prev_dir: Option<String>,     // $OLDPWD, used by `cd -`
+    pub options: HashMap<String, bool>, // set -e, set -x, etc.
+    pub hash_table: HashMap<String, PathBuf>, // command-peth cache for hash
+    pub traps: HashMap<i32, String>,  // signal -> command
+    pub umask: u32,                   // file-creation mask
+    pub shell_pgid: Pid,              // process group
+    pub tty_fd: RawFd,                // controlling terminal fd
+    pub is_login: bool,
+    pub is_interactive: bool,
+}
+
+impl Default for Shell {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Shell {
+    // TODO and detect is_login and is_iteractive in new():
     pub fn new() -> Self {
+        let is_login = std::env::args()
+            .next()
+            .map(|a| a.starts_with('-'))
+            .unwrap_or(false);
+
+        let is_interactive =
+            std::env::args().len() == 1 && std::io::IsTerminal::is_terminal(&std::io::stdin());
+
+        let shell_pgid = nix::unistd::getpgrp();
         Shell {
-            jobs:           Vec::new(),
-            aliases:        HashMap::new(),
-            env:            env::vars().collect(),
-            last_status:    0,
-            prev_dir:       None,
+            jobs: Vec::new(),
+            aliases: HashMap::new(),
+            env: env::vars().collect(),
+            variables: HashMap::new(),
+            functions: HashMap::new(),
+            history: Vec::new(),
+            hash_table: HashMap::new(),
+            last_status: 0,
+            prev_dir: None,
+            options: HashMap::new(),
+            traps: HashMap::new(),
+            umask: 0o022,
+            shell_pgid,
+            tty_fd: nix::libc::STDIN_FILENO,
+            is_login,
+            is_interactive,
         }
     }
 
     pub fn run(&mut self) -> Result<(), ReplError> {
-        let mut repl = Repl::new(String::from("rsh> "))?
-            .with_history("~/.rsh_history");
+        if self.is_login {
+            self.source_file_if_exists("~/.rsh_profile");
+        }
+        if self.is_interactive {
+            self.source_file_if_exists("~/.rshrc");
+        }
+        let mut repl = Repl::new(String::from("rsh> "))?.with_history("~/.rsh_history");
 
         loop {
             self.reap();
 
+            // build prompt
+            let cwd = self.env.get("PWD").map(String::as_str).unwrap_or("?");
+            let sigil = if self.last_status == 0 { "$" } else { "!" };
+            repl.set_prompt(format!("rsh:{} {} ", cwd, sigil));
+
             match repl.read_line() {
                 Ok(ReadResult::Line(input)) => {
-                    self.last_status = self.eval(&input);
+                    let trimmed = input.trim().to_string();
+                    if !trimmed.is_empty() {
+                        // save history to Shell and Repl
+                        self.history.push(trimmed.clone());
+                        repl.add_history(&trimmed);
+                    }
+                    self.last_status = self.eval(&trimmed);
                 }
-                Ok(ReadResult::Eof)         => break,
+                Ok(ReadResult::Eof) => break,
                 Ok(ReadResult::Interrupted) => continue,
                 Err(e) => {
                     eprintln!("rsh: {e}");
@@ -84,7 +144,7 @@ impl Shell {
         if let Some(expansion) = self.aliases.get(first) {
             match words.next() {
                 Some(rest) => format!("{} {}", expansion, rest),
-                None       => expansion.clone(),
+                None => expansion.clone(),
             }
         } else {
             input.to_string()
@@ -101,11 +161,11 @@ impl Shell {
         // Trivial inline commands
         if pipeline.commands.len() == 1 {
             match pipeline.commands[0].argv[0].as_str() {
-                "true"     => return 0,
-                "false"    => return 1,
-                "break"    => return 128,
+                "true" => return 0,
+                "false" => return 1,
+                "break" => return 128,
                 "continue" => return 129,
-                _          => {}
+                _ => {}
             }
         }
 
@@ -121,19 +181,105 @@ impl Shell {
         executor::execute(self, pipeline)
     }
 
+    // Environment Helpers
+    fn source_file_if_exists(&mut self, path: &str) {
+        let resolved = if let Some(rest) = path.strip_prefix("~/") {
+            let home = self.env.get("HOME").cloned().unwrap_or_else(|| ".".into());
+            format!("{}/{}", home, rest)
+        } else {
+            path.to_string()
+        };
+
+        if std::path::Path::new(&resolved).exists() {
+            let args = vec![resolved];
+            crate::builtins::rshell::source::run(&args, self);
+        }
+    }
+    pub fn install_defaults(&self) {
+        let home = self.env.get("HOME").cloned().unwrap_or_else(|| ".".into());
+
+        let files: &[(&str, &str)] = &[
+            (".rsh_profile", include_str!("defaults/rsh_profile")),
+            (".rshrc", include_str!("defaults/rshrc")),
+            (".rsh_logout", include_str!("defaults/rsh_logout")),
+        ];
+
+        for (name, contents) in files {
+            let path = format!("{}/{}", home, name);
+            if !std::path::Path::new(&path).exists()
+                && let Err(e) = std::fs::write(&path, contents)
+            {
+                eprintln!("rsh: warning: could not create {}: {}", name, e);
+            }
+        }
+    }
+
+    pub fn set_env(&mut self, key: &str, value: &str) {
+        self.env.insert(key.to_string(), value.to_string());
+        unsafe {
+            std::env::set_var(key, value);
+        }
+    }
+
+    pub fn remove_env(&mut self, key: &str) {
+        self.env.remove(key);
+        unsafe {
+            std::env::remove_var(key);
+        }
+    }
+
+    // command resolution
+    pub fn resolve_command(&self, name: &str) -> Option<PathBuf> {
+        if let Some(cached) = self.hash_table.get(name).filter(|c| c.exists()) {
+            return Some(cached.clone());
+        }
+        let path_var = self.env.get("PATH").map(String::as_str).unwrap_or("");
+        for dir in env::split_paths(path_var) {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+        None
+    }
+
+    // job helpers
+    pub fn next_job_id(&self) -> usize {
+        self.jobs.iter().map(|j| j.id).max().unwrap_or(0) + 1
+    }
+
+    pub fn find_job_mut(&mut self, spec: Option<&str>) -> Option<&mut Job> {
+        match spec {
+            None | Some("%+") | Some("%%") => self.jobs.last_mut(),
+            Some("%-") => {
+                let len = self.jobs.len();
+                if len >= 2 {
+                    self.jobs.get_mut(len - 2)
+                } else {
+                    None
+                }
+            }
+            Some(s) => {
+                let n: usize = s.strip_prefix('%').unwrap_or(s).parse().ok()?;
+                self.jobs.iter_mut().find(|j| j.id == n)
+            }
+        }
+    }
+
+    // process reaping
     pub fn reap(&mut self) {
         loop {
             match waitpid(
                 Pid::from_raw(-1),
                 Some(WaitPidFlag::WNOHANG | WaitPidFlag::WUNTRACED),
             ) {
-                Ok(WaitStatus::Exited(pid, code))     => {
+                Ok(WaitStatus::Exited(pid, code)) => {
                     self.update_process(pid, ProcessStatus::Exited(code));
                 }
                 Ok(WaitStatus::Signaled(pid, sig, _)) => {
                     self.update_process(pid, ProcessStatus::Signaled(sig));
                 }
-                Ok(WaitStatus::Stopped(pid, sig))     => {
+                Ok(WaitStatus::Stopped(pid, sig)) => {
                     self.update_process(pid, ProcessStatus::Stopped(sig));
                 }
                 Ok(WaitStatus::StillAlive) | Err(_) => break,
@@ -152,7 +298,6 @@ impl Shell {
         });
     }
 
-    // pub so executor.rs can call it when wait statuses come in
     pub fn update_process(&mut self, pid: Pid, status: ProcessStatus) {
         for job in &mut self.jobs {
             for process in &mut job.processes {

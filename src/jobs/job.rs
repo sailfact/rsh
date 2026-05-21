@@ -5,7 +5,7 @@ use nix::unistd::Pid;
 
 pub struct Job {
     pub id: usize,
-    pub pgid: Pid, 
+    pub pgid: Pid,
     pub processes: Vec<Process>,
     pub status: JobStatus,
 }
@@ -18,7 +18,12 @@ pub enum JobStatus {
 // Job impl
 impl Job {
     pub fn new(id: usize, pgid: Pid, processes: Vec<Process>) -> Self {
-        Job { id, pgid, processes, status: JobStatus::Running }
+        Job {
+            id,
+            pgid,
+            processes,
+            status: JobStatus::Running,
+        }
     }
 
     pub fn wait(&mut self) {
@@ -54,7 +59,6 @@ impl Job {
             self.status = JobStatus::Done(exit_code)
         }
     }
-    
 
     /// Send a signal to the entire process group.
     pub fn send_signal(&self, sig: Signal) {
@@ -66,14 +70,15 @@ impl Job {
     }
 
     pub fn is_done(&self) -> bool {
-        self.processes.iter().all(|p| !matches!(p.status, ProcessStatus::Running))
+        self.processes
+            .iter()
+            .all(|p| !matches!(p.status, ProcessStatus::Running))
     }
 
     pub fn argv_string(&self) -> String {
-        self.processes.first()
+        self.processes
+            .first()
             .map(|p| p.argv.join(" "))
             .unwrap_or_default()
     }
-
-    
 }

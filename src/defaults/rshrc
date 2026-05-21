@@ -1,0 +1,4 @@
+# ~/.rshrc — sourced by interactive shells
+alias ll='ls -la'
+alias la='ls -A'
+alias ..='cd ..'

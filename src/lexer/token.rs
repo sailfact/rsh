@@ -1,11 +1,10 @@
 #[derive(Debug, PartialEq, Clone)]
-pub enum Token{
+pub enum Token {
     Word(String),
     Pipe,
     RedirectIn,
-    RedirectOut, 
-    RedirectAppend, 
-    Ampersand, 
+    RedirectOut,
+    RedirectAppend,
+    Ampersand,
     Semicolon,
 }
-

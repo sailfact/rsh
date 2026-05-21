@@ -1,0 +1,2 @@
+# ~/.rsh_profile — sourced by login shells
+export PATH="$HOME/.local/bin:$PATH"

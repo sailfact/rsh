@@ -1,16 +1,16 @@
-use nix::unistd::{fork, ForkResult, pipe, close, setpgid, getpid, getpgrp};
-use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
+use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
 use nix::unistd::Pid;
-use std::os::unix::io::{RawFd, IntoRawFd};
+use nix::unistd::{ForkResult, close, fork, getpgrp, getpid, pipe, setpgid};
+use std::os::unix::io::{IntoRawFd, RawFd};
 
-use crate::ast::pipeline::Pipeline;
 use crate::ast::command::Command;
+use crate::ast::pipeline::Pipeline;
 use crate::ast::redirect::Redirect;
 use crate::builtins;
+use crate::external;
 use crate::jobs::job::Job;
 use crate::jobs::process::{Process, ProcessStatus};
 use crate::shell::Shell;
-use crate::external;
 
 pub fn execute(shell: &mut Shell, pipeline: Pipeline) -> i32 {
     let n = pipeline.commands.len();
@@ -26,28 +26,31 @@ pub fn execute(shell: &mut Shell, pipeline: Pipeline) -> i32 {
         pipes.push((r.into_raw_fd(), w.into_raw_fd()));
     }
 
-    let mut pgid      = Pid::from_raw(0);
+    let mut pgid = Pid::from_raw(0);
     let mut processes: Vec<Process> = Vec::new();
 
     for (i, cmd) in pipeline.commands.iter().enumerate() {
-        let stdin_fd  = if i == 0     { None } else { Some(pipes[i - 1].0) };
+        let stdin_fd = if i == 0 { None } else { Some(pipes[i - 1].0) };
         let stdout_fd = if i == n - 1 { None } else { Some(pipes[i].1) };
 
         match unsafe { fork().expect("fork() failed") } {
-
             ForkResult::Child => {
                 // ── Child process ─────────────────────────────────────────
 
-                let child_pid  = getpid();
+                let child_pid = getpid();
                 let child_pgid = if pgid.as_raw() == 0 { child_pid } else { pgid };
                 setpgid(child_pid, child_pgid).ok();
 
                 // Wire up pipe ends
                 if let Some(fd) = stdin_fd {
-                    unsafe { libc::dup2(fd, 0); }
+                    unsafe {
+                        libc::dup2(fd, 0);
+                    }
                 }
                 if let Some(fd) = stdout_fd {
-                    unsafe { libc::dup2(fd, 1); }
+                    unsafe {
+                        libc::dup2(fd, 1);
+                    }
                 }
 
                 // Apply explicit file redirections
@@ -87,8 +90,8 @@ pub fn execute(shell: &mut Shell, pipeline: Pipeline) -> i32 {
                 }
 
                 processes.push(Process {
-                    pid:    child,
-                    argv:   cmd.argv.clone(),
+                    pid: child,
+                    argv: cmd.argv.clone(),
                     status: ProcessStatus::Running,
                 });
             }
@@ -102,7 +105,7 @@ pub fn execute(shell: &mut Shell, pipeline: Pipeline) -> i32 {
     }
 
     // Register the job
-    let id  = shell.jobs.len() + 1;
+    let id = shell.jobs.len() + 1;
     let job = Job::new(id, pgid, processes);
     shell.jobs.push(job);
     let job_idx = shell.jobs.len() - 1;
@@ -118,15 +121,14 @@ pub fn execute(shell: &mut Shell, pipeline: Pipeline) -> i32 {
 fn wait_foreground(job_idx: usize, shell: &mut Shell) -> i32 {
     let pgid = shell.jobs[job_idx].pgid;
 
-    unsafe { libc::tcsetpgrp(0, pgid.as_raw()); }
+    unsafe {
+        libc::tcsetpgrp(0, pgid.as_raw());
+    }
 
     let mut last_status = 0;
 
     loop {
-        match waitpid(
-            Pid::from_raw(-pgid.as_raw()),
-            Some(WaitPidFlag::WUNTRACED),
-        ) {
+        match waitpid(Pid::from_raw(-pgid.as_raw()), Some(WaitPidFlag::WUNTRACED)) {
             Ok(WaitStatus::Exited(pid, code)) => {
                 shell.update_process(pid, ProcessStatus::Exited(code));
                 last_status = code;
@@ -140,7 +142,7 @@ fn wait_foreground(job_idx: usize, shell: &mut Shell) -> i32 {
                 shell.update_process(pid, ProcessStatus::Signaled(sig));
                 last_status = 128 + sig as i32;
             }
-            Ok(_)  => continue,
+            Ok(_) => continue,
             Err(_) => break,
         }
 
@@ -149,7 +151,9 @@ fn wait_foreground(job_idx: usize, shell: &mut Shell) -> i32 {
         }
     }
 
-    unsafe { libc::tcsetpgrp(0, getpgrp().as_raw()); }
+    unsafe {
+        libc::tcsetpgrp(0, getpgrp().as_raw());
+    }
     shell.jobs.retain(|j| !j.is_done());
 
     last_status
@@ -159,34 +163,40 @@ fn apply_redirects(cmd: &Command) {
     use std::fs::OpenOptions;
     use std::os::unix::io::IntoRawFd;
 
-    match &cmd.stdin {
-        Redirect::File(path) => {
-            let fd = OpenOptions::new()
-                .read(true)
-                .open(path)
-                .expect("failed to open stdin redirect")
-                .into_raw_fd();
-            unsafe { libc::dup2(fd, 0); }
+    if let Redirect::File(path) = &cmd.stdin {
+        let fd = OpenOptions::new()
+            .read(true)
+            .open(path)
+            .expect("failed to open stdin redirect")
+            .into_raw_fd();
+        unsafe {
+            libc::dup2(fd, 0);
         }
-        _ => {}
     }
 
     match &cmd.stdout {
         Redirect::File(path) => {
             let fd = OpenOptions::new()
-                .write(true).create(true).truncate(true)
+                .write(true)
+                .create(true)
+                .truncate(true)
                 .open(path)
                 .expect("failed to open stdout redirect")
                 .into_raw_fd();
-            unsafe { libc::dup2(fd, 1); }
+            unsafe {
+                libc::dup2(fd, 1);
+            }
         }
         Redirect::Append(path) => {
             let fd = OpenOptions::new()
-                .write(true).create(true).append(true)
+                .create(true)
+                .append(true)
                 .open(path)
                 .expect("failed to open stdout append redirect")
                 .into_raw_fd();
-            unsafe { libc::dup2(fd, 1); }
+            unsafe {
+                libc::dup2(fd, 1);
+            }
         }
         _ => {}
     }

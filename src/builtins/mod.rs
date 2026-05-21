@@ -1,6 +1,6 @@
 // src/builtins/mod.rs
-pub mod rshell;
 pub mod coreutils;
+pub mod rshell;
 
 use crate::ast::Command;
 use crate::shell::Shell;
@@ -11,35 +11,86 @@ use crate::shell::Shell;
 // whether to fork and which dispatcher to call.
 
 pub const SHELL_BUILTINS: &[&str] = &[
-    "cd", "exit", "exec",
-    "alias", "unalias", "export", "unset", "set", "shift",
-    "source", ".", "return", "break", "continue",
-    "jobs", "fg", "bg", "wait", "kill",
-    "trap", "umask", "read", "pwd",
-    "echo", "true", "false",
-    "type", "hash", "history", "ps",
+    "cd", "exit", "exec", "alias", "unalias", "export", "unset", "set", "shift", "source", ".",
+    "return", "break", "continue", "jobs", "fg", "bg", "wait", "kill", "trap", "umask", "read",
+    "pwd", "echo", "true", "false", "type", "hash", "history",
 ];
 
 pub const UUTILS_BUILTINS: &[&str] = &[
     // file ops
-    "cp", "mv", "rm", "mkdir", "rmdir", "touch", "ln",
-    "chmod", "chown", "stat", "du", "df", "install", "mktemp",
+    "cp",
+    "mv",
+    "rm",
+    "mkdir",
+    "rmdir",
+    "touch",
+    "ln",
+    "chmod",
+    "chown",
+    "stat",
+    "du",
+    "df",
+    "install",
+    "mktemp",
     // text
-    "cat", "printf", "head", "tail", "wc", "sort",
-    "uniq", "cut", "tr", "paste", "join", "fold", "fmt",
-    "tac", 
+    "cat",
+    "printf",
+    "head",
+    "tail",
+    "wc",
+    "sort",
+    "uniq",
+    "cut",
+    "tr",
+    "paste",
+    "join",
+    "fold",
+    "fmt",
+    "tac",
     // system
-    "whoami", "id", "hostname", "uname", "uptime", "date",
-    "sleep", "yes", "env", "nohup", "timeout", "nice",
-    "printenv", "tty", "stty",
+    "whoami",
+    "id",
+    "hostname",
+    "uname",
+    "uptime",
+    "date",
+    "sleep",
+    "yes",
+    "env",
+    "nohup",
+    "timeout",
+    "nice",
+    "printenv",
+    "tty",
+    "stty",
     // hashing
-    "base32", "base64", "md5sum", "sha256sum",
-    "sha512sum", "cksum", "sum", "b2sum",
+    "base32",
+    "base64",
+    "md5sum",
+    "sha256sum",
+    "sha512sum",
+    "cksum",
+    "sum",
+    "b2sum",
     // misc
-    "seq", "factor", "basename", "dirname", "realpath",
-    "pathchk", "link", "unlink", "sync", "truncate",
-    "shuf", "comm", "csplit", "split", "tee",
-    "test", "[", "expr",
+    "seq",
+    "factor",
+    "basename",
+    "dirname",
+    "realpath",
+    "pathchk",
+    "link",
+    "unlink",
+    "sync",
+    "truncate",
+    "shuf",
+    "comm",
+    "csplit",
+    "split",
+    "tee",
+    "test",
+    "[",
+    "expr",
 ];
 
 // ── Routing ───────────────────────────────────────────────────────────────────
@@ -65,10 +116,10 @@ pub fn is_any_builtin(name: &str) -> bool {
 pub fn exec_shell_builtin(cmd: &Command, shell: &mut Shell) -> i32 {
     // Trivial commands — not worth a Registry entry
     match cmd.argv[0].as_str() {
-        "true"     => return 0,
-        "false"    => return 1,
-        "break"    => return 128,  
-        "continue" => return 129,  
+        "true" => return 0,
+        "false" => return 1,
+        "break" => return 128,
+        "continue" => return 129,
         _ => {}
     }
 
