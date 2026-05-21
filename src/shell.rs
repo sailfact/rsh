@@ -19,25 +19,35 @@ use crate::repl::{Repl, ReadResult, ReplError};
 
 // TODO Add is_login and is_interactive to Shell and detect them in new():
 pub struct Shell {
-    pub jobs:        Vec<Job>,
-    pub aliases:     HashMap<String, String>,
-    pub env:         HashMap<String, String>,   // exported shell variables - inherited by chidren
-    pub variables:   HashMap<String, String>,   // unexported shell vars
-    pub functions:   HashMap<String, String>,   // shell function bodies
-    pub history:     Vec<String>,               // canonical history, read by `history` builtin
-    pub last_status: i32,                       // $?
-    pub prev_dir:    Option<String>,            // $OLDPWD, used by `cd -`
-    pub options:     HashMap<String, bool>,     // set -e, set -x, etc.
-    pub hash_table:  HashMap<String, PathBuf>,  // command-peth cache for hash
-    pub traps:       HashMap<i32, String>,      // signal -> command
-    pub umask:       u32,                       // file-creation mask
-    pub shell_pgid:  Pid,                       // process group
-    pub tty_fd:      RawFd,                     // controlling terminal fd
+    pub jobs:           Vec<Job>,
+    pub aliases:        HashMap<String, String>,
+    pub env:            HashMap<String, String>,   // exported shell variables - inherited by chidren
+    pub variables:      HashMap<String, String>,   // unexported shell vars
+    pub functions:      HashMap<String, String>,   // shell function bodies
+    pub history:        Vec<String>,               // canonical history, read by `history` builtin
+    pub last_status:    i32,                       // $?
+    pub prev_dir:       Option<String>,            // $OLDPWD, used by `cd -`
+    pub options:        HashMap<String, bool>,     // set -e, set -x, etc.
+    pub hash_table:     HashMap<String, PathBuf>,  // command-peth cache for hash
+    pub traps:          HashMap<i32, String>,      // signal -> command
+    pub umask:          u32,                       // file-creation mask
+    pub shell_pgid:     Pid,                       // process group
+    pub tty_fd:         RawFd,                     // controlling terminal fd
+    pub is_login:       bool,
+    pub is_interactive: bool,
 }
 
 impl Shell {
     // TODO and detect is_login and is_iteractive in new():
     pub fn new() -> Self {
+        let is_login = std::env::args()
+            .next()
+            .map(|a| a.starts_with('-'))
+            .unwrap_or(false);
+
+        let is_interactive = std::env::args().len() == 1
+            && std::io::IsTerminal::is_terminal(&std::io::stdin());
+
         let shell_pgid = nix::unistd::getpgrp();
         Shell {
             jobs:        Vec::new(),
@@ -54,11 +64,18 @@ impl Shell {
             umask:       0o022,
             shell_pgid,
             tty_fd:      nix::libc::STDIN_FILENO,
+            is_login,
+            is_interactive,
         }
     }
 
-    // TODO update run() to  use source_file_if_exists()
     pub fn run(&mut self) -> Result<(), ReplError> {
+        if self.is_login {
+            self.source_file_if_exists("~/.rsh_profile");
+        }
+        if self.is_interactive {
+            self.source_file_if_exists("~/.rshrc");
+        }
         let mut repl = Repl::new(String::from("rsh> "))?
             .with_history("~/.rsh_history");
 
@@ -160,14 +177,38 @@ impl Shell {
     }
 
     // Environment Helpers
-    // TODO 
-    // Create Functions: 
-    //  - fn source_file_if_exists(&mut self, path: &str)
-    //  - pub fn install_defaults(&self)
-    // Create Default Files: 
-    //  - src/defaults/rsh_profile
-    //  - src/defaults/rshrc
-    //  - src/defaults/rsh_logout
+    fn source_file_if_exists(&mut self, path: &str) {
+        let resolved = if path.starts_with("~/") {
+            let home = self.env.get("HOME").cloned().unwrap_or_else(|| ".".into());
+            format!("{}/{}", home, &path[2..])
+        } else {
+            path.to_string()
+        };
+
+        if std::path::Path::new(&resolved).exists() {
+            let args = vec![resolved];
+            crate::builtins::rshell::source::run(&args, self);
+        }
+    }
+    pub fn install_defaults(&self) {
+        let home = self.env.get("HOME").cloned().unwrap_or_else(|| ".".into());
+
+        let files: &[(&str, &str)] = &[
+            (".rsh_profile", include_str!("defaults/rsh_profile")),
+            (".rshrc",       include_str!("defaults/rshrc")),
+            (".rsh_logout",  include_str!("defaults/rsh_logout")),
+        ];
+
+        for (name, contents) in files {
+            let path = format!("{}/{}", home, name);
+            if !std::path::Path::new(&path).exists() {
+                if let Err(e) = std::fs::write(&path, contents) {
+                    eprintln!("rsh: warning: could not create {}: {}", name, e);
+                }
+            }
+        }
+    }
+
     pub fn set_env(&mut self, key: &str, value: &str) {
         self.env.insert(key.to_string(), value.to_string());
         unsafe {

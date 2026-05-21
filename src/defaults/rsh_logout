@@ -1,0 +1,2 @@
+# ~/.rsh_logout — sourced by login shells on exit
+echo "Goodbye"

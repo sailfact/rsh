@@ -2,7 +2,9 @@ use rsh::Shell;
 
 // TODO Wire install_defaults into main.rs:
 fn main() {
-    if let Err(e) = Shell::new().run() {
+    let mut shell = Shell::new();
+    shell.install_defaults();
+    if let Err(e) = Shell.run() {
         eprintln!("rsh: {e}");
         std::process::exit(1);
     }
