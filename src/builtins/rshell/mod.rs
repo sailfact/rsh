@@ -20,6 +20,7 @@ pub mod read;
 pub mod r#type;
 pub mod hash;
 pub mod history;
+pub mod echo;
 
 
 
@@ -63,6 +64,8 @@ impl Registry {
         r.register(r#type::Type);
         r.register(hash::Hash);
         r.register(history::History);
+        r.register(exec::Exec);
+        r.register(echo::Echo);
         r
     }
 

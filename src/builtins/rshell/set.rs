@@ -1,6 +1,5 @@
 use crate::shell::Shell;
 use super::Builtin;
-use std::env;
 
 pub struct Set;
 pub struct Shift;
@@ -91,8 +90,29 @@ impl Builtin for Shift {
     fn name(&self) -> &'static str { "shift" }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
-        // Todo
-        println!("shift not implemented");
+        let n: usize = args.get(1)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1);
+
+        // shift $1..$N positional params stored as "1", "2", ... in variables
+        let max = shell.variables.keys()
+            .filter_map(|k| k.parse::<usize>().ok())
+            .max()
+            .unwrap_or(0);
+
+        if n > max {
+            eprintln!("shift: shift count out of range");
+            return 1;
+        }
+
+        for i in 1..=max {
+            if i + n <= max {
+                let val = shell.variables.get(&(i + n).to_string()).cloned().unwrap_or_default();
+                shell.variables.insert(i.to_string(), val);
+            } else {
+                shell.variables.remove(&i.to_string());
+            }
+        }
         0
     }
 }

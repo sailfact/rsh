@@ -8,8 +8,8 @@ impl Builtin for Cd {
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
         //handle cd ~
-        let mut dir = match args.get(0).map(String::as_str) {
-            Some("~") | None => shell.variables.get("HOME").unwrap_or_default(),
+        let mut dir = match args.get(1).map(String::as_str) {
+            Some("~") | None => shell.variables.get("HOME").cloned().unwrap_or_default(),
             Some(d) if d.starts_with("~/") => {
                 let home = std::env::var("HOME").unwrap_or_default();
                 format!("{}/{}", home, &d[2..])

@@ -17,7 +17,7 @@ pub const SHELL_BUILTINS: &[&str] = &[
     "jobs", "fg", "bg", "wait", "kill",
     "trap", "umask", "read", "pwd",
     "echo", "true", "false",
-    "type", "hash", "history", "ps",
+    "type", "hash", "history",
 ];
 
 pub const UUTILS_BUILTINS: &[&str] = &[

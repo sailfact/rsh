@@ -4,7 +4,7 @@ use rsh::Shell;
 fn main() {
     let mut shell = Shell::new();
     shell.install_defaults();
-    if let Err(e) = Shell.run() {
+    if let Err(e) = shell.run() {
         eprintln!("rsh: {e}");
         std::process::exit(1);
     }
