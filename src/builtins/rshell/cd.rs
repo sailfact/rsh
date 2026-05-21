@@ -29,7 +29,17 @@ impl Builtin for Cd {
         }
         shell.prev_dir = old;
         match std::env::set_current_dir(&dir) {
-            Ok(_) => 0,
+            Ok(_) => {
+                if let Some(old_dir) = &shell.prev_dir {
+                    shell.env.insert("OLDPWD".into(), old_dir.clone());
+                }
+                let new = std::env::current_dir()
+                    .ok()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or(dir);
+                shell.env.insert("PWD".into(), new);
+                0
+            }
             Err(e) => {
                 eprintln!("cd: {}: {}", &dir, e);
                 1

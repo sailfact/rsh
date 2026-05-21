@@ -10,7 +10,7 @@ impl Builtin for Set {
     }
 
     fn run(&self, args: &[String], shell: &mut Shell) -> i32 {
-        if args.is_empty() {
+        if args.len() <= 1 {
             let mut all: Vec<(&String, &String)> =
                 shell.variables.iter().chain(shell.env.iter()).collect();
             all.sort_by(|a, b| a.0.cmp(b.0));
@@ -20,7 +20,7 @@ impl Builtin for Set {
             return 0;
         }
 
-        let mut iter = args.iter();
+        let mut iter = args[1..].iter();
         while let Some(arg) = iter.next() {
             match arg.as_str() {
                 "-o" | "+o" => {
