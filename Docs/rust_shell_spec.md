@@ -13,12 +13,13 @@ A UNIX shell implemented in Rust, built around a classic read-eval-print loop (R
 - Provide built-in commands: `cd`, `exit`, `alias`, `jobs`, `fg`, `bg`
 - Support I/O redirection (`<`, `>`, `>>`) and pipelines (`|`)
 - Maintain a clean separation between parsing, execution, and job management
+- Work toward POSIX compliance: `$()` command substitution, here-docs (`<<`), and arithmetic expansion (`$((...))`) — deferred beyond v1
+- Scripting / non-interactive mode (`rsh script.sh`, `rsh -c 'cmd'`)
+- Tab completion and advanced readline features
 
 ## Non-Goals
 
-- POSIX compliance (no `$()`, no here-docs, no arithmetic expansion in v1)
-- Scripting / non-interactive mode
-- Tab completion or advanced readline features
+- Full POSIX certification in v1 — compliance is incremental; `$()`, here-docs, and arithmetic expansion land after the v1 milestones below
 
 ---
 
@@ -212,7 +213,7 @@ loop:
 |---|---|
 | `nix` | Safe wrappers around `fork`, `execvp`, `waitpid`, `pipe`, `dup2`, `tcsetpgrp`, `kill` |
 | `libc` | Low-level signal constants where `nix` doesn't expose them |
-| `rustyline` *(optional)* | Readline-style line editing and history in `Repl` |
+| `rustyline` | Readline-style line editing, history, and tab completion in `Repl` |
 
 ---
 
@@ -244,6 +245,11 @@ src/
 | 6 | Builtins | `cd`, `alias`, `exit`, `jobs` implemented |
 | 7 | SIGCHLD reaping | Background job exit is reported on next prompt |
 | 8 | Alias expansion | Aliases resolved during lexing/parsing |
+| 9 | Non-interactive mode | `rsh script.sh` and `rsh -c 'cmd'` run to completion without a prompt |
+| 10 | Word expansion | `$VAR`, `$?`, `~`, and glob expansion; single vs. double quote semantics |
+| 11 | POSIX expansions | `$()` command substitution, here-docs (`<<`), arithmetic expansion (`$((...))`) |
+| 12 | Scripting constructs | `if`/`while`/`for`, functions, positional parameters; `set -e` / `set -x` honored |
+| 13 | Tab completion | Command-name and path completion via a rustyline completion helper |
 
 ---
 
