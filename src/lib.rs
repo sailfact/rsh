@@ -11,6 +11,7 @@ pub mod lexer;
 pub mod parser;
 pub mod repl;
 pub mod shell;
+pub mod signals;
 
 pub use repl::Repl;
 pub use repl::{ReadResult, ReplError};

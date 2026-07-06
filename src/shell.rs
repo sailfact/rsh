@@ -16,8 +16,8 @@ use crate::lexer::Token;
 use crate::lexer::lexer::Lexer;
 use crate::parser::parser::Parser;
 use crate::repl::{ReadResult, Repl, ReplError};
+use crate::signals;
 
-// TODO Add is_login and is_interactive to Shell and detect them in new():
 pub struct Shell {
     pub jobs: Vec<Job>,
     pub aliases: HashMap<String, String>,
@@ -44,7 +44,6 @@ impl Default for Shell {
 }
 
 impl Shell {
-    // TODO and detect is_login and is_iteractive in new():
     pub fn new() -> Self {
         let is_login = std::env::args()
             .next()
@@ -75,13 +74,24 @@ impl Shell {
         }
     }
 
-    pub fn run(&mut self) -> Result<(), ReplError> {
+    /// Run the shell to completion and return its exit status.
+    pub fn run(&mut self) -> Result<i32, ReplError> {
+        signals::install_shell_handlers(self.is_interactive);
+
         if self.is_login {
             self.source_file_if_exists("~/.rsh_profile");
         }
+
         if self.is_interactive {
-            self.source_file_if_exists("~/.rshrc");
+            self.run_interactive()?;
+        } else {
+            self.run_noninteractive();
         }
+        Ok(self.last_status)
+    }
+
+    fn run_interactive(&mut self) -> Result<(), ReplError> {
+        self.source_file_if_exists("~/.rshrc");
         let mut repl = Repl::new(String::from("rsh> "))?.with_history("~/.rsh_history");
 
         loop {
@@ -115,25 +125,79 @@ impl Shell {
         Ok(())
     }
 
-    pub fn eval(&mut self, input: &str) -> i32 {
-        let input = input.trim();
-        if input.is_empty() {
-            return 0;
+    /// Evaluate input without a prompt: `rsh -c 'cmd'`, `rsh script.sh`,
+    /// or a script piped on stdin. Sets `last_status` to the status of the
+    /// last command run.
+    fn run_noninteractive(&mut self) {
+        let args: Vec<String> = env::args().skip(1).collect();
+
+        match args.first().map(String::as_str) {
+            Some("-c") => match args.get(1) {
+                Some(cmd) => {
+                    let cmd = cmd.clone();
+                    self.last_status = self.eval(&cmd);
+                }
+                None => {
+                    eprintln!("rsh: -c: option requires an argument");
+                    self.last_status = 2;
+                }
+            },
+            Some(flag) if flag.starts_with('-') => {
+                eprintln!("rsh: {}: invalid option", flag);
+                self.last_status = 2;
+            }
+            Some(path) => {
+                let path = path.to_string();
+                match std::fs::read_to_string(&path) {
+                    Ok(content) => self.last_status = self.eval(&content),
+                    Err(e) => {
+                        eprintln!("rsh: {}: {}", path, e);
+                        self.last_status = 127;
+                    }
+                }
+            }
+            None => {
+                // No args and stdin is not a terminal: evaluate stdin.
+                use std::io::Read;
+                let mut input = String::new();
+                if let Err(e) = std::io::stdin().read_to_string(&mut input) {
+                    eprintln!("rsh: stdin: {}", e);
+                    self.last_status = 1;
+                    return;
+                }
+                self.last_status = self.eval(&input);
+            }
         }
+        self.reap();
+    }
 
-        let input = self.expand_aliases(input);
-        let tokens = Lexer::new(&input).tokenize();
+    /// Evaluate one or more lines of input. Blank lines and `#` comment
+    /// lines are skipped; each remaining line is split on `;` into
+    /// pipelines. Returns the status of the last command run (or the
+    /// current `last_status` if nothing ran).
+    pub fn eval(&mut self, input: &str) -> i32 {
+        let mut last = self.last_status;
 
-        // Split token stream on semicolons -> one Vec<Token> per Pipeline
-        let segments: Vec<Vec<Token>> = tokens
-            .split(|t| t == &Token::Semicolon)
-            .map(|s| s.to_vec())
-            .filter(|s| !s.is_empty()) // ignore tailing ";"
-            .collect();
+        for raw_line in input.lines() {
+            let line = raw_line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
 
-        let mut last = 0;
-        for segment in segments {
-            last = self.eval_tokens(segment);
+            let line = self.expand_aliases(line);
+            let tokens = Lexer::new(&line).tokenize();
+
+            // Split token stream on semicolons -> one Vec<Token> per Pipeline
+            let segments: Vec<Vec<Token>> = tokens
+                .split(|t| t == &Token::Semicolon)
+                .map(|s| s.to_vec())
+                .filter(|s| !s.is_empty()) // ignore trailing ";"
+                .collect();
+
+            for segment in segments {
+                last = self.eval_tokens(segment);
+                self.last_status = last;
+            }
         }
         last
     }
@@ -173,12 +237,107 @@ impl Shell {
         if pipeline.commands.len() == 1 {
             let name = pipeline.commands[0].argv[0].as_str();
             if builtins::is_rshell_builtin(name) {
-                return builtins::exec_shell_builtin(&pipeline.commands[0], self);
+                return self.run_builtin_with_redirects(&pipeline.commands[0]);
             }
         }
 
         // Everything else — pipelines, uutils, external
         executor::execute(self, pipeline)
+    }
+
+    /// Run an rshell builtin in the shell process, temporarily applying any
+    /// file redirections to fd 0/1 and restoring them afterwards (builtins
+    /// like `cd`/`export` must not fork, so `> file` is done via dup2 swap).
+    fn run_builtin_with_redirects(&mut self, cmd: &crate::ast::Command) -> i32 {
+        use crate::ast::Redirect;
+        use std::fs::OpenOptions;
+        use std::io::Write;
+        use std::os::unix::io::IntoRawFd;
+
+        let redirect_in = matches!(cmd.stdin, Redirect::File(_));
+        let redirect_out = matches!(cmd.stdout, Redirect::File(_) | Redirect::Append(_));
+
+        if !redirect_in && !redirect_out {
+            return builtins::exec_shell_builtin(cmd, self);
+        }
+
+        // Open target files before touching fd 0/1 so failures leave the
+        // shell's own descriptors untouched.
+        let in_fd = if let Redirect::File(path) = &cmd.stdin {
+            match OpenOptions::new().read(true).open(path) {
+                Ok(f) => Some(f.into_raw_fd()),
+                Err(e) => {
+                    eprintln!("rsh: {}: {}", path, e);
+                    return 1;
+                }
+            }
+        } else {
+            None
+        };
+
+        let out_fd = match &cmd.stdout {
+            Redirect::File(path) => match OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(path)
+            {
+                Ok(f) => Some(f.into_raw_fd()),
+                Err(e) => {
+                    eprintln!("rsh: {}: {}", path, e);
+                    if let Some(fd) = in_fd {
+                        unsafe { libc::close(fd) };
+                    }
+                    return 1;
+                }
+            },
+            Redirect::Append(path) => match OpenOptions::new().create(true).append(true).open(path)
+            {
+                Ok(f) => Some(f.into_raw_fd()),
+                Err(e) => {
+                    eprintln!("rsh: {}: {}", path, e);
+                    if let Some(fd) = in_fd {
+                        unsafe { libc::close(fd) };
+                    }
+                    return 1;
+                }
+            },
+            _ => None,
+        };
+
+        // Flush buffered output before swapping fd 1 out from under it.
+        let _ = std::io::stdout().flush();
+
+        let saved_in = in_fd.map(|fd| unsafe {
+            let saved = libc::dup(0);
+            libc::dup2(fd, 0);
+            libc::close(fd);
+            saved
+        });
+        let saved_out = out_fd.map(|fd| unsafe {
+            let saved = libc::dup(1);
+            libc::dup2(fd, 1);
+            libc::close(fd);
+            saved
+        });
+
+        let status = builtins::exec_shell_builtin(cmd, self);
+
+        let _ = std::io::stdout().flush();
+        if let Some(saved) = saved_in {
+            unsafe {
+                libc::dup2(saved, 0);
+                libc::close(saved);
+            }
+        }
+        if let Some(saved) = saved_out {
+            unsafe {
+                libc::dup2(saved, 1);
+                libc::close(saved);
+            }
+        }
+
+        status
     }
 
     // Environment Helpers
@@ -268,6 +427,10 @@ impl Shell {
 
     // process reaping
     pub fn reap(&mut self) {
+        // Only scan when the SIGCHLD handler has flagged a child state change.
+        if !signals::take_sigchld() {
+            return;
+        }
         loop {
             match waitpid(
                 Pid::from_raw(-1),

@@ -14,11 +14,11 @@ Measured against the spec's 13 milestones:
 | 2 | I/O redirection (`<`, `>`, `>>`) | ✅ Done |
 | 3 | Pipelines | ✅ Done |
 | 4 | Background jobs (`&`) | ✅ Done |
-| 5 | Job control (`fg`, `bg`, Ctrl-Z) | ⚠️ Builtins exist, but signal setup is missing (see below) |
-| 6 | Builtins | ✅ Done — 23 rshell builtins + uutils coreutils |
-| 7 | SIGCHLD reaping | ⚠️ Works via `WNOHANG` polling each REPL tick, but no SIGCHLD handler is installed |
+| 5 | Job control (`fg`, `bg`, Ctrl-Z) | ✅ Done — signal setup landed in `src/signals.rs` |
+| 6 | Builtins | ✅ Done — 23 rshell builtins + uutils coreutils; redirects now honored via fd save/restore |
+| 7 | SIGCHLD reaping | ✅ Done — flag handler installed; `reap()` gated on the flag |
 | 8 | Alias expansion | ⚠️ First-word only, pre-lex string substitution; fragile (see below) |
-| 9 | Non-interactive mode | ❌ Not started |
+| 9 | Non-interactive mode | ✅ Done — `rsh -c`, `rsh script.sh`, piped stdin; exits with last status |
 | 10 | Word expansion (`$VAR`, `$?`, `~`, globs, quote semantics) | ❌ Not started |
 | 11 | POSIX expansions (`$()`, `<<`, `$((...))`) | ❌ Not started |
 | 12 | Scripting constructs (`if`/`while`/`for`, functions) | ❌ Not started (stub fields exist on `Shell`) |
@@ -61,7 +61,7 @@ Measured against the spec's 13 milestones:
 Ordered so that each phase unlocks the next; phases 0–2 are small and pay
 for everything after.
 
-### Phase 0 — Correctness & hygiene (small, do first)
+### Phase 0 — Correctness & hygiene (small, do first) ✅ DONE
 
 - Install signal handling in `Shell::run()` per the spec: ignore
   `SIGTTOU`/`SIGTTIN`/`SIGINT`/`SIGQUIT` in the shell; in each forked child,
@@ -72,7 +72,7 @@ for everything after.
   redirect failure prints one line and `exit(1)`; command-not-found exits 127.
 - Delete the three stale TODO comments (main.rs, shell.rs).
 
-### Phase 1 — Milestone 9: non-interactive mode
+### Phase 1 — Milestone 9: non-interactive mode ✅ DONE
 
 - Argument handling in `main.rs` / `Shell::run()`:
   `rsh script.sh`, `rsh -c 'cmd'`, and piped stdin (`echo ls | rsh`) all
@@ -81,7 +81,9 @@ for everything after.
 - This is deliberately before word expansion because it makes the shell
   scriptable by the test suite.
 
-### Phase 2 — Testing foundation
+### Phase 2 — Testing foundation ✅ MOSTLY DONE
+
+`tests/cli.rs` (25 end-to-end tests) landed; parser `Result` errors remain.
 
 - Add `tests/` integration suite driving `target/debug/rsh -c '...'`
   (e.g. via `assert_cmd`): cover pipelines, redirects, exit statuses,
@@ -143,6 +145,11 @@ The largest functional gap. Suggested design:
 
 ## Suggested immediate next PR
 
-Phase 0 + Phase 1 together: signal-handling fixes, panic removal, and
-non-interactive mode. It's a modest diff, fixes the one bug that can stop
-the shell entirely (SIGTTOU), and makes every later phase testable.
+~~Phase 0 + Phase 1 together~~ — done (signal handling, panic removal,
+non-interactive mode, builtin redirects via fd save/restore, and the
+`tests/cli.rs` end-to-end suite). Defects 1, 2, and 8 above are fixed;
+during that work another was found and fixed: redirects on single rshell
+builtins (`echo x > file`) were silently dropped.
+
+Next up: **Phase 3 — word expansion** (with parser error handling from
+Phase 2 folded in), which unblocks everything downstream.
