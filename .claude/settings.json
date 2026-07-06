@@ -1,7 +1,8 @@
 {
   "enabledPlugins": {
     "caveman@caveman": true,
-    "superpowers@superpowers-dev": true
+    "superpowers@superpowers-dev": true,
+    "ponytail@ponytail": true
   },
   "extraKnownMarketplaces": {
     "caveman": {
