@@ -15,6 +15,12 @@
         "source": "github",
         "repo": "obra/superpowers"
       }
+    },
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "dietrichgebert/ponytail"
+      }
     }
   }
 }
