@@ -5,6 +5,12 @@
         "source": "github",
         "repo": "juliusbrussee/caveman"
       }
+    },
+    "superpowers-dev": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers"
+      }
     }
   }
 }
