@@ -74,6 +74,10 @@ impl Lexer {
     }
     // Read a word — unquoted and quoted runs with no intervening whitespace
     // glue together into a single token (so `ll='ls -la'` is one word).
+    //
+    // Quote characters are KEPT in the token: the expansion pass
+    // (src/expansion.rs) needs them to decide what to expand, and it is
+    // responsible for quote removal.
     fn read_word(&mut self) -> String {
         let mut word = String::new();
         while let Some(ch) = self.peek() {
@@ -89,15 +93,17 @@ impl Lexer {
         word
     }
 
-    // Read a single- or double-quoted string, consuming the surrounding quotes.
+    // Read a single- or double-quoted string, including the surrounding
+    // quotes (quote removal happens during expansion).
     fn read_quoted(&mut self) -> String {
         let quote = self.advance().unwrap(); // consume opening quote
         let mut word = String::new();
+        word.push(quote);
         while let Some(ch) = self.advance() {
+            word.push(ch);
             if ch == quote {
                 break;
             }
-            word.push(ch);
         }
         word
     }

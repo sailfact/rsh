@@ -222,6 +222,22 @@ impl Shell {
             return 0;
         }
 
+        // Bare assignments (`X=1`, `PATH=$PATH:/x`) mutate shell state and
+        // must be handled before expansion (the name must stay literal).
+        if pipeline.commands.len() == 1
+            && !pipeline.background
+            && let Some(status) = self.try_assignment(&pipeline.commands[0])
+        {
+            return status;
+        }
+
+        // Expand $VAR, ~, globs; remove quotes. A word may expand to zero
+        // fields, so a command can become empty here.
+        let pipeline = crate::expansion::expand_pipeline(pipeline, self);
+        if pipeline.commands.iter().any(|c| c.argv.is_empty()) {
+            return 0;
+        }
+
         // Trivial inline commands
         if pipeline.commands.len() == 1 {
             match pipeline.commands[0].argv[0].as_str() {
@@ -243,6 +259,47 @@ impl Shell {
 
         // Everything else — pipelines, uutils, external
         executor::execute(self, pipeline)
+    }
+
+    /// If the command is one or more bare `NAME=value` words (and nothing
+    /// else), perform the assignments and return Some(0). Values are
+    /// expanded (`X=$Y` works) but never field-split. Assigning to a name
+    /// that is already exported updates the environment too.
+    fn try_assignment(&mut self, cmd: &crate::ast::Command) -> Option<i32> {
+        use crate::ast::Redirect;
+
+        // `X=1 > file` etc. is not treated as an assignment.
+        if cmd.stdin != Redirect::Inherit || cmd.stdout != Redirect::Inherit {
+            return None;
+        }
+
+        fn split_assignment(word: &str) -> Option<(&str, &str)> {
+            let eq = word.find('=')?;
+            let name = &word[..eq];
+            let mut chars = name.chars();
+            let first = chars.next()?;
+            if !(first.is_ascii_alphabetic() || first == '_') {
+                return None;
+            }
+            if !chars.all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                return None;
+            }
+            Some((name, &word[eq + 1..]))
+        }
+
+        let assignments: Option<Vec<(&str, &str)>> =
+            cmd.argv.iter().map(|w| split_assignment(w)).collect();
+        let assignments = assignments?;
+
+        for (name, raw_value) in assignments {
+            let value = crate::expansion::expand_word_no_split(raw_value, self);
+            if self.env.contains_key(name) {
+                self.set_env(name, &value);
+            } else {
+                self.variables.insert(name.to_string(), value);
+            }
+        }
+        Some(0)
     }
 
     /// Run an rshell builtin in the shell process, temporarily applying any

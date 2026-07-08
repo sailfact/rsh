@@ -5,6 +5,7 @@
 pub mod ast;
 pub mod builtins;
 pub mod executor;
+pub mod expansion;
 pub mod external;
 pub mod jobs;
 pub mod lexer;

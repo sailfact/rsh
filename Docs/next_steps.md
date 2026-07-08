@@ -19,7 +19,7 @@ Measured against the spec's 13 milestones:
 | 7 | SIGCHLD reaping | ✅ Done — flag handler installed; `reap()` gated on the flag |
 | 8 | Alias expansion | ⚠️ First-word only, pre-lex string substitution; fragile (see below) |
 | 9 | Non-interactive mode | ✅ Done — `rsh -c`, `rsh script.sh`, piped stdin; exits with last status |
-| 10 | Word expansion (`$VAR`, `$?`, `~`, globs, quote semantics) | ❌ Not started |
+| 10 | Word expansion (`$VAR`, `$?`, `~`, globs, quote semantics) | ✅ Done — `src/expansion.rs`; bare `NAME=value` assignments too |
 | 11 | POSIX expansions (`$()`, `<<`, `$((...))`) | ❌ Not started |
 | 12 | Scripting constructs (`if`/`while`/`for`, functions) | ❌ Not started (stub fields exist on `Shell`) |
 | 13 | Tab completion | ❌ Not started (rustyline defaults only) |
@@ -91,7 +91,14 @@ for everything after.
 - Add parser unit tests for the malformed-input cases in gap #5, fixing the
   parser to return `Result` with real error messages as part of it.
 
-### Phase 3 — Milestone 10: word expansion
+### Phase 3 — Milestone 10: word expansion ✅ DONE
+
+Landed as `src/expansion.rs`: the lexer now keeps quote characters in
+`Word` tokens and the expansion pass (between parse and dispatch) handles
+tilde, `$VAR`/`${VAR}`/`$?`/`$$`/`$0`-`$9`/`$#`, field splitting, globs
+(via the `glob` crate, bash-style no-match-stays-literal), quote removal,
+and bare `NAME=value` assignments. Alias expansion was left pre-lex for
+now. Original design notes below.
 
 The largest functional gap. Suggested design:
 

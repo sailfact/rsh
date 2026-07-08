@@ -237,6 +237,109 @@ fn background_job_does_not_block() {
     );
 }
 
+// ── Word expansion ───────────────────────────────────────────────────────────
+
+#[test]
+fn variable_assignment_and_expansion() {
+    let out = rsh_c("X=world; echo hello $X");
+    assert_eq!(stdout(&out), "hello world\n");
+}
+
+#[test]
+fn braced_variable_expansion() {
+    let out = rsh_c("X=val; echo ${X}ue");
+    assert_eq!(stdout(&out), "value\n");
+}
+
+#[test]
+fn assignment_value_is_expanded() {
+    let out = rsh_c("A=one; B=$A-two; echo $B");
+    assert_eq!(stdout(&out), "one-two\n");
+}
+
+#[test]
+fn last_status_expands() {
+    let out = rsh_c("false; echo status=$?");
+    assert_eq!(stdout(&out), "status=1\n");
+    let out = rsh_c("true; echo status=$?");
+    assert_eq!(stdout(&out), "status=0\n");
+}
+
+#[test]
+fn single_quotes_suppress_expansion() {
+    let out = rsh_c("X=hidden; echo '$X'");
+    assert_eq!(stdout(&out), "$X\n");
+}
+
+#[test]
+fn double_quotes_expand_without_splitting() {
+    let out = rsh_c("X='a b'; printf '%s\\n' \"$X\"");
+    assert_eq!(stdout(&out), "a b\n");
+}
+
+#[test]
+fn unquoted_expansion_field_splits() {
+    let out = rsh_c("X='a b'; printf '%s\\n' $X");
+    assert_eq!(stdout(&out), "a\nb\n");
+}
+
+#[test]
+fn unset_variable_expands_to_nothing() {
+    let out = rsh_c("printf '%s\\n' start $UNSET_XYZ end");
+    assert_eq!(stdout(&out), "start\nend\n");
+}
+
+#[test]
+fn tilde_expands_to_home() {
+    let out = rsh_c("echo ~");
+    let home = std::env::var("HOME").unwrap();
+    assert_eq!(stdout(&out), format!("{home}\n"));
+}
+
+#[test]
+fn glob_expands_and_sorts() {
+    let dir = tempdir("glob");
+    std::fs::write(dir.join("b.txt"), "").unwrap();
+    std::fs::write(dir.join("a.txt"), "").unwrap();
+    std::fs::write(dir.join("c.log"), "").unwrap();
+    let out = rsh_c(&format!("cd {}; echo *.txt", dir.display()));
+    assert_eq!(stdout(&out), "a.txt b.txt\n");
+}
+
+#[test]
+fn glob_without_match_stays_literal() {
+    let dir = tempdir("glob-nomatch");
+    let out = rsh_c(&format!("cd {}; echo *.nomatch", dir.display()));
+    assert_eq!(stdout(&out), "*.nomatch\n");
+}
+
+#[test]
+fn quoted_glob_is_literal() {
+    let dir = tempdir("glob-quoted");
+    std::fs::write(dir.join("a.txt"), "").unwrap();
+    let out = rsh_c(&format!("cd {}; echo '*.txt'", dir.display()));
+    assert_eq!(stdout(&out), "*.txt\n");
+}
+
+#[test]
+fn read_builtin_sets_variable() {
+    let out = rsh_c(
+        "echo from-read | cat > /dev/null; printf 'input\\n' > /tmp/rsh-read-test.txt; read v < /tmp/rsh-read-test.txt; echo got=$v",
+    );
+    assert_eq!(stdout(&out), "got=input\n");
+}
+
+#[test]
+fn expanded_redirect_target() {
+    let dir = tempdir("expand-redirect");
+    let script = format!(
+        "D={d}; echo content > $D/out.txt; cat $D/out.txt",
+        d = dir.display()
+    );
+    let out = rsh_c(&script);
+    assert_eq!(stdout(&out), "content\n");
+}
+
 // ── Builtins that mutate shell state ─────────────────────────────────────────
 
 #[test]
