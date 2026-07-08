@@ -38,7 +38,7 @@ stdin → Repl → Lexer → Parser → Executor → OS
 
 **`src/repl.rs`** — Terminal interaction via `rustyline`. Provides `readline()` with prompt, and history load/save.
 
-**`src/lexer/`** — Tokenizes a raw input string into a flat `Vec<Token>`. Tokens: `Word`, `Pipe`, `RedirectIn`, `RedirectOut`, `RedirectAppend`, `Ampersand`, `Semicolon`. Quoted and unquoted runs of the same word are glued into a single `Word` token.
+**`src/lexer/`** — Tokenizes a raw input string into a flat `Vec<Token>`. Tokens: `Word`, `Pipe`, `RedirectIn`, `RedirectOut`, `RedirectAppend`, `Ampersand`, `Semicolon`, `AndIf` (`&&`), `OrIf` (`||`). Quoted and unquoted runs of the same word are glued into a single `Word` token, with quote characters preserved for the expansion pass. `Shell::eval` splits the stream on `;`/`&`/`&&`/`||` into a command list with bash conditional semantics.
 
 **`src/parser/`** — Consumes tokens and emits a `Pipeline { commands: Vec<Command>, background: bool }`. Each `Command` holds `argv`, a stdin `Redirect`, and a stdout `Redirect` (variants: `Inherit`, `File(String)`, `Pipe`).
 

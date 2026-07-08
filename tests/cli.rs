@@ -237,6 +237,56 @@ fn background_job_does_not_block() {
     );
 }
 
+// ── Command lists: && || ; & ─────────────────────────────────────────────────
+
+#[test]
+fn and_runs_on_success() {
+    assert_eq!(stdout(&rsh_c("true && echo yes")), "yes\n");
+}
+
+#[test]
+fn and_skips_on_failure_and_keeps_status() {
+    let out = rsh_c("false && echo no");
+    assert_eq!(stdout(&out), "");
+    assert_eq!(out.status.code(), Some(1));
+}
+
+#[test]
+fn or_runs_on_failure() {
+    assert_eq!(stdout(&rsh_c("false || echo rescued")), "rescued\n");
+}
+
+#[test]
+fn or_skips_on_success() {
+    let out = rsh_c("true || echo not-shown");
+    assert_eq!(stdout(&out), "");
+    assert_eq!(out.status.code(), Some(0));
+}
+
+#[test]
+fn and_or_chain() {
+    assert_eq!(stdout(&rsh_c("false && echo a || echo b")), "b\n");
+    assert_eq!(stdout(&rsh_c("true && false || echo c")), "c\n");
+}
+
+#[test]
+fn midline_ampersand_backgrounds_first_command() {
+    // `sleep 2 & echo now` must print immediately and exit fast.
+    let start = std::time::Instant::now();
+    let status = Command::new(RSH)
+        .args(["-c", "sleep 2 & echo now"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .expect("failed to spawn rsh");
+    assert!(status.success());
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(2),
+        "mid-line & blocked on background job"
+    );
+}
+
 // ── Word expansion ───────────────────────────────────────────────────────────
 
 #[test]

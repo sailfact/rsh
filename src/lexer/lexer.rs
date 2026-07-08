@@ -39,12 +39,22 @@ impl Lexer {
                 } // Skip Spaces ' ' & tabs '\t'
                 '|' => {
                     self.advance();
-                    tokens.push(Token::Pipe);
-                } // Push | on to heap
+                    if self.peek() == Some('|') {
+                        self.advance();
+                        tokens.push(Token::OrIf);
+                    } else {
+                        tokens.push(Token::Pipe);
+                    }
+                }
                 '&' => {
                     self.advance();
-                    tokens.push(Token::Ampersand);
-                } // Push & on to heap
+                    if self.peek() == Some('&') {
+                        self.advance();
+                        tokens.push(Token::AndIf);
+                    } else {
+                        tokens.push(Token::Ampersand);
+                    }
+                }
                 ';' => {
                     self.advance();
                     tokens.push(Token::Semicolon);

@@ -118,13 +118,12 @@ The largest functional gap. Suggested design:
   here (post-tokenize, first word of each command, with a loop guard),
   fixing gap #4.
 
-### Phase 4 — Command lists: `&&`, `||`, proper `;`/`&` handling
+### Phase 4 — Command lists: `&&`, `||`, proper `;`/`&` handling ✅ DONE
 
-- New tokens `AndIf`/`OrIf`; replace the semicolon `split()` in
-  `Shell::eval` with a real list parser producing
-  `Vec<(Pipeline, Separator)>`. `&` becomes a separator (bash allows
-  `a & b`), not just a trailing flag.
-- Prerequisite for `if`/`while` in Phase 6.
+`AndIf`/`OrIf` tokens added; `Shell::eval` now splits the token stream
+into (pipeline, separator) pairs with bash conditional semantics, and `&`
+is a real separator (`a & b` works). This also fixed the bug where a
+mid-line `&` was silently swallowed into argv.
 
 ### Phase 5 — Milestone 11: POSIX expansions
 

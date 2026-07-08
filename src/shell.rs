@@ -172,10 +172,19 @@ impl Shell {
     }
 
     /// Evaluate one or more lines of input. Blank lines and `#` comment
-    /// lines are skipped; each remaining line is split on `;` into
-    /// pipelines. Returns the status of the last command run (or the
-    /// current `last_status` if nothing ran).
+    /// lines are skipped; each remaining line is split into a command list
+    /// on `;`, `&`, `&&`, and `||`, with bash conditional semantics.
+    /// Returns the status of the last command run (or the current
+    /// `last_status` if nothing ran).
     pub fn eval(&mut self, input: &str) -> i32 {
+        #[derive(PartialEq, Clone, Copy)]
+        enum Sep {
+            Seq,        // `;` or end of line
+            Background, // `&`
+            And,        // `&&`
+            Or,         // `||`
+        }
+
         let mut last = self.last_status;
 
         for raw_line in input.lines() {
@@ -187,16 +196,44 @@ impl Shell {
             let line = self.expand_aliases(line);
             let tokens = Lexer::new(&line).tokenize();
 
-            // Split token stream on semicolons -> one Vec<Token> per Pipeline
-            let segments: Vec<Vec<Token>> = tokens
-                .split(|t| t == &Token::Semicolon)
-                .map(|s| s.to_vec())
-                .filter(|s| !s.is_empty()) // ignore trailing ";"
-                .collect();
+            // Split the token stream into (pipeline tokens, separator) pairs.
+            let mut items: Vec<(Vec<Token>, Sep)> = Vec::new();
+            let mut current: Vec<Token> = Vec::new();
+            for token in tokens {
+                let sep = match token {
+                    Token::Semicolon => Sep::Seq,
+                    Token::Ampersand => Sep::Background,
+                    Token::AndIf => Sep::And,
+                    Token::OrIf => Sep::Or,
+                    other => {
+                        current.push(other);
+                        continue;
+                    }
+                };
+                items.push((std::mem::take(&mut current), sep));
+            }
+            if !current.is_empty() {
+                items.push((current, Sep::Seq));
+            }
 
-            for segment in segments {
-                last = self.eval_tokens(segment);
-                self.last_status = last;
+            // Run the list. `&&`/`||` gate on the status of the last
+            // pipeline that actually ran (skipped pipelines don't touch it).
+            let mut prev_sep = Sep::Seq;
+            for (segment, sep) in items {
+                if segment.is_empty() {
+                    prev_sep = sep;
+                    continue;
+                }
+                let should_run = match prev_sep {
+                    Sep::And => last == 0,
+                    Sep::Or => last != 0,
+                    _ => true,
+                };
+                if should_run {
+                    last = self.eval_tokens(segment, sep == Sep::Background);
+                    self.last_status = last;
+                }
+                prev_sep = sep;
             }
         }
         last
@@ -215,8 +252,9 @@ impl Shell {
         }
     }
 
-    fn eval_tokens(&mut self, tokens: Vec<Token>) -> i32 {
-        let pipeline = Parser::new(tokens).parse();
+    fn eval_tokens(&mut self, tokens: Vec<Token>, background: bool) -> i32 {
+        let mut pipeline = Parser::new(tokens).parse();
+        pipeline.background |= background;
 
         if pipeline.commands.is_empty() {
             return 0;

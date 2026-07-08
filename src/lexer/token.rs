@@ -7,4 +7,6 @@ pub enum Token {
     RedirectAppend,
     Ampersand,
     Semicolon,
+    AndIf, // &&
+    OrIf,  // ||
 }
