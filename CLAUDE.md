@@ -42,6 +42,8 @@ stdin → Repl → Lexer → Parser → Executor → OS
 
 **`src/parser/`** — Consumes tokens and emits a `Pipeline { commands: Vec<Command>, background: bool }`. Each `Command` holds `argv`, a stdin `Redirect`, and a stdout `Redirect` (variants: `Inherit`, `File(String)`, `Pipe`).
 
+**`src/script.rs`** — Script-level grammar above the pipeline: parses the whole token stream (newlines act as `;`) into a recursive `Ast` — `if`/`elif`/`else`, `while`/`until`, `for..in`, brace groups, `NAME() { }` functions, and `&&`/`||`/`;`/`&` lists — and executes it. `break`/`continue`/`return` unwind via a `Flow` enum; `set -e`/`set -x` are honored here and in `eval_tokens`. `ParseError::Incomplete` (vs `Syntax`) drives the REPL's `> ` continuation prompt.
+
 **`src/expansion.rs`** — Word expansion pass between parse and dispatch: tilde, `$VAR`/`${VAR}`/`$?`/`$$`/`$0`-`$9`/`$#`, field splitting, globbing, and quote removal (the lexer keeps quote chars in `Word` tokens). Redirect targets expand without splitting. Bare `NAME=value` assignments are handled in `Shell::try_assignment` before expansion.
 
 **`src/executor.rs`** — Forks and execs each command in a pipeline, wires stdin/stdout with `dup2`, and assigns process groups (`setpgid`). Uses `nix` for all syscall wrappers.

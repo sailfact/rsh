@@ -21,7 +21,7 @@ Measured against the spec's 13 milestones:
 | 9 | Non-interactive mode | ✅ Done — `rsh -c`, `rsh script.sh`, piped stdin; exits with last status |
 | 10 | Word expansion (`$VAR`, `$?`, `~`, globs, quote semantics) | ✅ Done — `src/expansion.rs`; bare `NAME=value` assignments too |
 | 11 | POSIX expansions (`$()`, `<<`, `$((...))`) | ⚠️ `$()` and `$((...))` done; here-docs (`<<`) still open |
-| 12 | Scripting constructs (`if`/`while`/`for`, functions) | ❌ Not started (stub fields exist on `Shell`) |
+| 12 | Scripting constructs (`if`/`while`/`for`, functions) | ✅ Done — `src/script.rs`; `set -e`/`set -x` honored |
 | 13 | Tab completion | ✅ Done — `RshHelper` in `src/repl.rs` |
 
 ## Defects and gaps found during the audit
@@ -137,15 +137,21 @@ mid-line `&` was silently swallowed into argv.
   line-based, so these need multi-line input plumbing plus REPL
   continuation prompts.
 
-### Phase 6 — Milestone 12: scripting constructs
+### Phase 6 — Milestone 12: scripting constructs ✅ MOSTLY DONE
 
-- `if`/`elif`/`else`, `while`/`until`, `for` — requires upgrading the AST
-  from flat `Pipeline` to a recursive `CompoundCommand`.
-- Functions (populate the existing `Shell::functions`), positional
-  parameters + `shift`, `return`, real `break`/`continue` (replacing the
-  128/129 sentinel hack in `shell.rs::eval_tokens`).
-- Honor `set -e` / `set -x` (the `options` map already exists).
-- Fire traps: check `Shell::traps` in the reap/signal path and on `exit`.
+Landed as `src/script.rs`: a recursive parser + evaluator above the
+pipeline level. `if`/`elif`/`else`/`fi`, `while`/`until`, `for NAME in
+WORDS`, brace groups, and `NAME() { ...; }` functions with positional
+parameters (`set --` now populates them; saved/restored across calls).
+`break`/`continue`/`return` unwind through a `Flow` enum (the old
+128/129 sentinels are gone). `set -e` exits on untested failures
+(statuses feeding `&&`/`||`/`if`/`while` conditions don't count) and
+`set -x` traces expanded commands. The interactive REPL prompts `> `
+for continuation lines of unfinished constructs. Also fixed here: the
+`[` builtin (bracket form of `test`) rejected its closing `]`.
+
+Still open from the original list: firing traps (`Shell::traps` is
+stored but never consulted).
 
 ### Phase 7 — Milestone 13: tab completion ✅ DONE
 

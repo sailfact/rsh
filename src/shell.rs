@@ -23,7 +23,8 @@ pub struct Shell {
     pub aliases: HashMap<String, String>,
     pub env: HashMap<String, String>, // exported shell variables - inherited by chidren
     pub variables: HashMap<String, String>, // unexported shell vars
-    pub functions: HashMap<String, String>, // shell function bodies
+    pub functions: HashMap<String, crate::script::Ast>, // shell function bodies
+    pub condition_depth: u32,         // >0 while running if/while conditions (set -e)
     pub history: Vec<String>,         // canonical history, read by `history` builtin
     pub last_status: i32,             // $?
     pub prev_dir: Option<String>,     // $OLDPWD, used by `cd -`
@@ -60,6 +61,7 @@ impl Shell {
             env: env::vars().collect(),
             variables: HashMap::new(),
             functions: HashMap::new(),
+            condition_depth: 0,
             history: Vec::new(),
             hash_table: HashMap::new(),
             last_status: 0,
@@ -104,7 +106,24 @@ impl Shell {
 
             match repl.read_line() {
                 Ok(ReadResult::Line(input)) => {
-                    let trimmed = input.trim().to_string();
+                    let mut buffer = input;
+                    // Unfinished construct (`if` without `fi`, trailing
+                    // `&&`, …): keep reading continuation lines.
+                    while self.needs_more_input(&buffer) {
+                        repl.set_prompt("> ".to_string());
+                        match repl.read_line() {
+                            Ok(ReadResult::Line(more)) => {
+                                buffer.push('\n');
+                                buffer.push_str(&more);
+                            }
+                            // EOF/Ctrl-C cancels the pending construct.
+                            Ok(_) | Err(_) => {
+                                buffer.clear();
+                                break;
+                            }
+                        }
+                    }
+                    let trimmed = buffer.trim().to_string();
                     if !trimmed.is_empty() {
                         // save history to Shell and Repl
                         self.history.push(trimmed.clone());
@@ -171,72 +190,106 @@ impl Shell {
         self.reap();
     }
 
-    /// Evaluate one or more lines of input. Blank lines and `#` comment
-    /// lines are skipped; each remaining line is split into a command list
-    /// on `;`, `&`, `&&`, and `||`, with bash conditional semantics.
-    /// Returns the status of the last command run (or the current
-    /// `last_status` if nothing ran).
+    /// Evaluate one or more lines of input as a script: blank lines and
+    /// `#` comment lines are skipped, newlines act as `;`, and the whole
+    /// token stream is parsed into compound commands (`if`, `while`,
+    /// `for`, functions, `&&`/`||` lists) then executed. Returns the
+    /// status of the last command run (or the current `last_status` if
+    /// nothing ran).
     pub fn eval(&mut self, input: &str) -> i32 {
-        #[derive(PartialEq, Clone, Copy)]
-        enum Sep {
-            Seq,        // `;` or end of line
-            Background, // `&`
-            And,        // `&&`
-            Or,         // `||`
+        use crate::script::{self, Flow, ParseError};
+
+        let tokens = self.lex_input(input);
+        if tokens.is_empty() {
+            return self.last_status;
         }
 
-        let mut last = self.last_status;
+        match script::parse(tokens) {
+            Ok(ast) => {
+                let status = match script::exec(self, &ast) {
+                    Flow::Normal(status) | Flow::Return(status) => status,
+                    Flow::Break(_) | Flow::Continue(_) => {
+                        eprintln!("rsh: break/continue: only meaningful in a loop");
+                        self.last_status
+                    }
+                };
+                self.last_status = status;
+                status
+            }
+            Err(ParseError::Incomplete) => {
+                eprintln!("rsh: syntax error: unexpected end of input");
+                self.last_status = 2;
+                2
+            }
+            Err(ParseError::Syntax(msg)) => {
+                eprintln!("rsh: syntax error: {}", msg);
+                self.last_status = 2;
+                2
+            }
+        }
+    }
 
+    /// True if `input` parses as an unfinished construct (`if` without
+    /// `fi`, trailing `&&`, …) that further lines could complete — the
+    /// interactive REPL uses this to prompt for continuation lines.
+    pub fn needs_more_input(&self, input: &str) -> bool {
+        matches!(
+            crate::script::parse(self.lex_input(input)),
+            Err(crate::script::ParseError::Incomplete)
+        )
+    }
+
+    /// Lex every line of the input into one token stream, with newlines
+    /// contributing `;` separators. Comment/blank lines are dropped and
+    /// aliases expand on each line's first word.
+    fn lex_input(&self, input: &str) -> Vec<Token> {
+        let mut tokens: Vec<Token> = Vec::new();
         for raw_line in input.lines() {
             let line = raw_line.trim();
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-
             let line = self.expand_aliases(line);
-            let tokens = Lexer::new(&line).tokenize();
-
-            // Split the token stream into (pipeline tokens, separator) pairs.
-            let mut items: Vec<(Vec<Token>, Sep)> = Vec::new();
-            let mut current: Vec<Token> = Vec::new();
-            for token in tokens {
-                let sep = match token {
-                    Token::Semicolon => Sep::Seq,
-                    Token::Ampersand => Sep::Background,
-                    Token::AndIf => Sep::And,
-                    Token::OrIf => Sep::Or,
-                    other => {
-                        current.push(other);
-                        continue;
-                    }
-                };
-                items.push((std::mem::take(&mut current), sep));
+            let line_tokens = Lexer::new(&line).tokenize();
+            if !tokens.is_empty() && !line_tokens.is_empty() {
+                tokens.push(Token::Semicolon);
             }
-            if !current.is_empty() {
-                items.push((current, Sep::Seq));
-            }
-
-            // Run the list. `&&`/`||` gate on the status of the last
-            // pipeline that actually ran (skipped pipelines don't touch it).
-            let mut prev_sep = Sep::Seq;
-            for (segment, sep) in items {
-                if segment.is_empty() {
-                    prev_sep = sep;
-                    continue;
-                }
-                let should_run = match prev_sep {
-                    Sep::And => last == 0,
-                    Sep::Or => last != 0,
-                    _ => true,
-                };
-                if should_run {
-                    last = self.eval_tokens(segment, sep == Sep::Background);
-                    self.last_status = last;
-                }
-                prev_sep = sep;
-            }
+            tokens.extend(line_tokens);
         }
-        last
+        tokens
+    }
+
+    /// Invoke a shell function: bind `$1`-`$N` to the call arguments for
+    /// the duration of the body, restoring the caller's positionals after.
+    pub(crate) fn call_function(&mut self, body: &crate::script::Ast, argv: &[String]) -> i32 {
+        use crate::script::{self, Flow};
+
+        let saved: Vec<(String, String)> = self
+            .variables
+            .iter()
+            .filter(|(k, _)| k.chars().all(|c| c.is_ascii_digit()))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        self.variables
+            .retain(|k, _| !k.chars().all(|c| c.is_ascii_digit()));
+        for (i, arg) in argv.iter().skip(1).enumerate() {
+            self.variables.insert((i + 1).to_string(), arg.clone());
+        }
+
+        let status = match script::exec(self, body) {
+            Flow::Normal(status) | Flow::Return(status) => status,
+            Flow::Break(_) | Flow::Continue(_) => {
+                eprintln!("rsh: break/continue: only meaningful in a loop");
+                self.last_status
+            }
+        };
+
+        self.variables
+            .retain(|k, _| !k.chars().all(|c| c.is_ascii_digit()));
+        for (k, v) in saved {
+            self.variables.insert(k, v);
+        }
+        status
     }
 
     fn expand_aliases(&self, input: &str) -> String {
@@ -252,7 +305,7 @@ impl Shell {
         }
     }
 
-    fn eval_tokens(&mut self, tokens: Vec<Token>, background: bool) -> i32 {
+    pub(crate) fn eval_tokens(&mut self, tokens: Vec<Token>, background: bool) -> i32 {
         let mut pipeline = Parser::new(tokens).parse();
         pipeline.background |= background;
 
@@ -276,20 +329,29 @@ impl Shell {
             return 0;
         }
 
-        // Trivial inline commands
-        if pipeline.commands.len() == 1 {
-            match pipeline.commands[0].argv[0].as_str() {
-                "true" => return 0,
-                "false" => return 1,
-                "break" => return 128,
-                "continue" => return 129,
-                _ => {}
+        // set -x: trace each expanded command
+        if self.options.get("xtrace").copied().unwrap_or(false) {
+            for cmd in &pipeline.commands {
+                eprintln!("+ {}", cmd.argv.join(" "));
             }
         }
 
-        // Single rshell builtin — must run in the shell process
         if pipeline.commands.len() == 1 {
             let name = pipeline.commands[0].argv[0].as_str();
+
+            // Trivial inline commands
+            match name {
+                "true" => return 0,
+                "false" => return 1,
+                _ => {}
+            }
+
+            // Shell functions shadow builtins and externals
+            if let Some(body) = self.functions.get(name).cloned() {
+                return self.call_function(&body, &pipeline.commands[0].argv);
+            }
+
+            // Single rshell builtin — must run in the shell process
             if builtins::is_rshell_builtin(name) {
                 return self.run_builtin_with_redirects(&pipeline.commands[0]);
             }

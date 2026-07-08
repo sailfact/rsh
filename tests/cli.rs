@@ -433,6 +433,144 @@ fn arithmetic_expansion() {
     assert_eq!(stdout(&rsh_c("X=9; echo $((X / 2)) $((X % 2))")), "4 1\n");
 }
 
+// ── Scripting constructs ─────────────────────────────────────────────────────
+
+#[test]
+fn if_then_else() {
+    assert_eq!(
+        stdout(&rsh_c("if true; then echo yes; else echo no; fi")),
+        "yes\n"
+    );
+    assert_eq!(
+        stdout(&rsh_c("if false; then echo yes; else echo no; fi")),
+        "no\n"
+    );
+}
+
+#[test]
+fn if_elif_chain() {
+    let out = rsh_c("if false; then echo a; elif true; then echo b; else echo c; fi");
+    assert_eq!(stdout(&out), "b\n");
+}
+
+#[test]
+fn if_without_matching_branch_is_success() {
+    let out = rsh_c("if false; then echo skipped; fi");
+    assert_eq!(stdout(&out), "");
+    assert_eq!(out.status.code(), Some(0));
+}
+
+#[test]
+fn while_loop_with_test_and_arithmetic() {
+    let out = rsh_c("i=0; while [ $i -lt 3 ]; do echo n=$i; i=$((i+1)); done");
+    assert_eq!(stdout(&out), "n=0\nn=1\nn=2\n");
+}
+
+#[test]
+fn until_loop() {
+    let out = rsh_c("i=0; until [ $i -ge 2 ]; do echo u=$i; i=$((i+1)); done");
+    assert_eq!(stdout(&out), "u=0\nu=1\n");
+}
+
+#[test]
+fn for_loop_iterates_words() {
+    assert_eq!(
+        stdout(&rsh_c("for x in a b c; do echo item=$x; done")),
+        "item=a\nitem=b\nitem=c\n"
+    );
+}
+
+#[test]
+fn for_loop_iterates_glob_matches() {
+    let dir = tempdir("for-glob");
+    std::fs::write(dir.join("1.txt"), "").unwrap();
+    std::fs::write(dir.join("2.txt"), "").unwrap();
+    let out = rsh_c(&format!(
+        "cd {}; for f in *.txt; do echo f=$f; done",
+        dir.display()
+    ));
+    assert_eq!(stdout(&out), "f=1.txt\nf=2.txt\n");
+}
+
+#[test]
+fn break_exits_loop() {
+    let out = rsh_c("for n in 1 2 3 4; do if [ $n = 3 ]; then break; fi; echo n=$n; done");
+    assert_eq!(stdout(&out), "n=1\nn=2\n");
+}
+
+#[test]
+fn continue_skips_iteration() {
+    let out = rsh_c("for n in 1 2 3; do if [ $n = 2 ]; then continue; fi; echo n=$n; done");
+    assert_eq!(stdout(&out), "n=1\nn=3\n");
+}
+
+#[test]
+fn function_definition_and_call() {
+    let out = rsh_c("greet() { echo hello $1 $2; }; greet big world");
+    assert_eq!(stdout(&out), "hello big world\n");
+}
+
+#[test]
+fn function_return_status() {
+    let out = rsh_c("f() { return 5; echo never; }; f; echo status=$?");
+    assert_eq!(stdout(&out), "status=5\n");
+}
+
+#[test]
+fn function_positional_params_restore() {
+    // The caller's positionals come back after the call.
+    let out = rsh_c("set -- outer; f() { echo in=$1; }; f inner; echo out=$1");
+    assert_eq!(stdout(&out), "in=inner\nout=outer\n");
+}
+
+#[test]
+fn multiline_construct_in_script() {
+    let dir = tempdir("script-constructs");
+    let script = dir.join("loop.rsh");
+    std::fs::write(
+        &script,
+        "countdown() {\n  for i in 3 2 1; do\n    echo $i\n  done\n}\ncountdown\n",
+    )
+    .unwrap();
+    let out = Command::new(RSH).arg(&script).output().unwrap();
+    assert_eq!(stdout(&out), "3\n2\n1\n");
+}
+
+#[test]
+fn keywords_are_plain_words_as_arguments() {
+    assert_eq!(stdout(&rsh_c("echo done fi then")), "done fi then\n");
+}
+
+#[test]
+fn unterminated_construct_is_syntax_error() {
+    let out = rsh_c("if true; then echo hi");
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("syntax error"));
+}
+
+#[test]
+fn errexit_stops_on_failure() {
+    let out = rsh_c("set -e; false; echo unreachable");
+    assert_eq!(stdout(&out), "");
+    assert_eq!(out.status.code(), Some(1));
+    // ...but tested statuses don't trip it.
+    let out = rsh_c("set -e; false || true; echo reached");
+    assert_eq!(stdout(&out), "reached\n");
+}
+
+#[test]
+fn xtrace_prints_expanded_commands() {
+    let out = rsh_c("set -x; X=v; echo $X");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("+ echo v"));
+}
+
+#[test]
+fn bracket_test_builtin() {
+    assert_eq!(rsh_c("[ 1 = 1 ]").status.code(), Some(0));
+    assert_eq!(rsh_c("[ 1 = 2 ]").status.code(), Some(1));
+    assert_eq!(rsh_c("[ 1 = 1").status.code(), Some(2)); // missing ]
+}
+
 // ── Builtins that mutate shell state ─────────────────────────────────────────
 
 #[test]
