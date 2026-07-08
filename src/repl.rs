@@ -1,7 +1,92 @@
-use rustyline::DefaultEditor;
+use rustyline::Editor;
+use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
+use rustyline::history::FileHistory;
+use rustyline::{Helper, Highlighter, Hinter, Validator};
 use std::path::PathBuf;
 use thiserror::Error;
+
+/// Line-editing helper: command-name completion in command position,
+/// filename completion everywhere else. Hinting/highlighting/validation
+/// are no-op derives.
+#[derive(Helper, Hinter, Highlighter, Validator)]
+pub struct RshHelper {
+    filename: FilenameCompleter,
+    commands: Vec<String>,
+}
+
+impl RshHelper {
+    fn new() -> Self {
+        let mut commands: Vec<String> = crate::builtins::SHELL_BUILTINS
+            .iter()
+            .chain(crate::builtins::UUTILS_BUILTINS.iter())
+            .map(|s| s.to_string())
+            .collect();
+
+        // Every executable on PATH is a completion candidate.
+        if let Ok(path) = std::env::var("PATH") {
+            for dir in std::env::split_paths(&path) {
+                let Ok(entries) = std::fs::read_dir(dir) else {
+                    continue;
+                };
+                for entry in entries.flatten() {
+                    if entry.path().is_file()
+                        && let Some(name) = entry.file_name().to_str()
+                    {
+                        commands.push(name.to_string());
+                    }
+                }
+            }
+        }
+        commands.sort();
+        commands.dedup();
+        Self {
+            filename: FilenameCompleter::new(),
+            commands,
+        }
+    }
+
+    /// A word is in command position if everything before it (in the
+    /// current pipeline segment) is blank or a command separator.
+    fn is_command_position(before_word: &str) -> bool {
+        matches!(
+            before_word.trim_end().chars().last(),
+            None | Some('|' | ';' | '&')
+        )
+    }
+}
+
+impl Completer for RshHelper {
+    type Candidate = Pair;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Pair>)> {
+        let start = line[..pos]
+            .rfind([' ', '\t', '|', ';', '&', '<', '>'])
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        let word = &line[start..pos];
+
+        if Self::is_command_position(&line[..start]) && !word.contains('/') {
+            let matches = self
+                .commands
+                .iter()
+                .filter(|c| c.starts_with(word))
+                .map(|c| Pair {
+                    display: c.clone(),
+                    replacement: c.clone(),
+                })
+                .collect();
+            Ok((start, matches))
+        } else {
+            self.filename.complete(line, pos, ctx)
+        }
+    }
+}
 
 // REPL - Read, Eval, Print, Loop
 // Read — wait for the user to type a line and press Enter
@@ -9,7 +94,7 @@ use thiserror::Error;
 // Print — show the output (or prompt for the next command)
 // Loop — go back to the start
 pub struct Repl {
-    editor: DefaultEditor,
+    editor: Editor<RshHelper, FileHistory>,
     history: Option<PathBuf>,
     prompt: String,
 }
@@ -42,8 +127,9 @@ pub enum ReadResult {
 
 impl Repl {
     pub fn new(prompt: String) -> Result<Self, ReplError> {
-        // Create Default Editor
-        let editor = DefaultEditor::new().map_err(ReplError::ReadLine)?;
+        let mut editor: Editor<RshHelper, FileHistory> =
+            Editor::new().map_err(ReplError::ReadLine)?;
+        editor.set_helper(Some(RshHelper::new()));
         // Set prompt if none provided
         let prompt = if prompt.is_empty() {
             String::from("rsh> ")
@@ -111,5 +197,50 @@ impl Repl {
                 })?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn complete(line: &str) -> (usize, Vec<Pair>) {
+        let helper = RshHelper::new();
+        let history = FileHistory::new();
+        let ctx = rustyline::Context::new(&history);
+        helper.complete(line, line.len(), &ctx).unwrap()
+    }
+
+    #[test]
+    fn completes_builtin_in_command_position() {
+        let (start, candidates) = complete("ech");
+        assert_eq!(start, 0);
+        assert!(candidates.iter().any(|p| p.replacement == "echo"));
+    }
+
+    #[test]
+    fn completes_command_after_pipe_and_semicolon() {
+        let (start, candidates) = complete("ls | ech");
+        assert_eq!(start, 5);
+        assert!(candidates.iter().any(|p| p.replacement == "echo"));
+
+        let (_, candidates) = complete("true; expor");
+        assert!(candidates.iter().any(|p| p.replacement == "export"));
+    }
+
+    #[test]
+    fn argument_position_completes_filenames() {
+        // Run from the crate root: Cargo.toml exists.
+        let (_, candidates) = complete("cat Cargo.to");
+        assert!(
+            candidates
+                .iter()
+                .any(|p| p.replacement.contains("Cargo.toml")),
+            "expected Cargo.toml in {:?}",
+            candidates
+                .iter()
+                .map(|p| &p.replacement)
+                .collect::<Vec<_>>()
+        );
     }
 }

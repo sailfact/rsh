@@ -22,7 +22,7 @@ Measured against the spec's 13 milestones:
 | 10 | Word expansion (`$VAR`, `$?`, `~`, globs, quote semantics) | ✅ Done — `src/expansion.rs`; bare `NAME=value` assignments too |
 | 11 | POSIX expansions (`$()`, `<<`, `$((...))`) | ⚠️ `$()` and `$((...))` done; here-docs (`<<`) still open |
 | 12 | Scripting constructs (`if`/`while`/`for`, functions) | ❌ Not started (stub fields exist on `Shell`) |
-| 13 | Tab completion | ❌ Not started (rustyline defaults only) |
+| 13 | Tab completion | ✅ Done — `RshHelper` in `src/repl.rs` |
 
 ## Defects and gaps found during the audit
 
@@ -147,11 +147,12 @@ mid-line `&` was silently swallowed into argv.
 - Honor `set -e` / `set -x` (the `options` map already exists).
 - Fire traps: check `Shell::traps` in the reap/signal path and on `exit`.
 
-### Phase 7 — Milestone 13: tab completion
+### Phase 7 — Milestone 13: tab completion ✅ DONE
 
-- Implement a rustyline `Completer`/`Helper` in `repl.rs`: command-name
-  completion from builtins + `PATH` (reuse `Shell::resolve_command`'s PATH
-  walk), path completion elsewhere on the line.
+`RshHelper` in `repl.rs`: command-name completion (builtins + uutils +
+every executable on `PATH`) when the cursor is in command position
+(start of line or after `|`/`;`/`&`), rustyline `FilenameCompleter`
+everywhere else.
 
 ## Suggested immediate next PR
 
