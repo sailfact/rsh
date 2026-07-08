@@ -390,6 +390,49 @@ fn expanded_redirect_target() {
     assert_eq!(stdout(&out), "content\n");
 }
 
+// ── Command substitution & arithmetic ────────────────────────────────────────
+
+#[test]
+fn command_substitution_basic() {
+    assert_eq!(stdout(&rsh_c("echo $(echo captured)")), "captured\n");
+}
+
+#[test]
+fn command_substitution_with_pipeline() {
+    let out = rsh_c("echo $(printf 'a\\nb\\nc' | wc -l)");
+    assert_eq!(stdout(&out).trim(), "2");
+}
+
+#[test]
+fn command_substitution_nested() {
+    assert_eq!(
+        stdout(&rsh_c("echo $(echo outer $(echo inner))")),
+        "outer inner\n"
+    );
+}
+
+#[test]
+fn command_substitution_sees_unexported_variables() {
+    assert_eq!(stdout(&rsh_c("X=seen; echo $(echo $X)")), "seen\n");
+}
+
+#[test]
+fn command_substitution_into_variable() {
+    assert_eq!(stdout(&rsh_c("V=$(echo stored); echo $V")), "stored\n");
+}
+
+#[test]
+fn command_substitution_cwd_follows_cd() {
+    assert_eq!(stdout(&rsh_c("cd /; echo $(pwd)")), "/\n");
+}
+
+#[test]
+fn arithmetic_expansion() {
+    assert_eq!(stdout(&rsh_c("echo $((2 + 3 * 4))")), "14\n");
+    assert_eq!(stdout(&rsh_c("echo $(( (2 + 3) * 4 ))")), "20\n");
+    assert_eq!(stdout(&rsh_c("X=9; echo $((X / 2)) $((X % 2))")), "4 1\n");
+}
+
 // ── Builtins that mutate shell state ─────────────────────────────────────────
 
 #[test]

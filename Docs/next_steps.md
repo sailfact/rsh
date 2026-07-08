@@ -20,7 +20,7 @@ Measured against the spec's 13 milestones:
 | 8 | Alias expansion | ⚠️ First-word only, pre-lex string substitution; fragile (see below) |
 | 9 | Non-interactive mode | ✅ Done — `rsh -c`, `rsh script.sh`, piped stdin; exits with last status |
 | 10 | Word expansion (`$VAR`, `$?`, `~`, globs, quote semantics) | ✅ Done — `src/expansion.rs`; bare `NAME=value` assignments too |
-| 11 | POSIX expansions (`$()`, `<<`, `$((...))`) | ❌ Not started |
+| 11 | POSIX expansions (`$()`, `<<`, `$((...))`) | ⚠️ `$()` and `$((...))` done; here-docs (`<<`) still open |
 | 12 | Scripting constructs (`if`/`while`/`for`, functions) | ❌ Not started (stub fields exist on `Shell`) |
 | 13 | Tab completion | ❌ Not started (rustyline defaults only) |
 
@@ -125,13 +125,17 @@ into (pipeline, separator) pairs with bash conditional semantics, and `&`
 is a real separator (`a & b` works). This also fixed the bug where a
 mid-line `&` was silently swallowed into argv.
 
-### Phase 5 — Milestone 11: POSIX expansions
+### Phase 5 — Milestone 11: POSIX expansions ⚠️ MOSTLY DONE
 
-- `$()` command substitution (run pipeline, capture stdout, strip trailing
-  newlines) — slots into the Phase 3 expansion pass.
-- Here-docs (`<<`, `<<-`) — lexer needs multi-line awareness; REPL needs
+- ✅ `$()` command substitution: the lexer keeps the whole balanced
+  construct in one word; expansion forks a subshell (variables, aliases,
+  and cwd all propagate) and captures stdout with trailing newlines
+  stripped. Nesting works.
+- ✅ Arithmetic expansion `$((...))`: i64 with `+ - * / %`, parens, unary
+  minus, and variable references; division by zero reports and yields 0.
+- ❌ Here-docs (`<<`, `<<-`) still open — the lexer/eval loop is
+  line-based, so these need multi-line input plumbing plus REPL
   continuation prompts.
-- Arithmetic expansion `$((...))`.
 
 ### Phase 6 — Milestone 12: scripting constructs
 

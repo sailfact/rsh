@@ -94,6 +94,16 @@ impl Lexer {
             match ch {
                 ' ' | '\t' | '|' | '&' | ';' | '<' | '>' => break,
                 '\'' | '"' => word.push_str(&self.read_quoted()),
+                '$' => {
+                    word.push(ch);
+                    self.advance();
+                    // `$(cmd ...)` and `$((expr ...))` may contain spaces
+                    // and operators; consume through the balanced close so
+                    // the whole construct stays in one word.
+                    if self.peek() == Some('(') {
+                        word.push_str(&self.read_balanced_parens());
+                    }
+                }
                 _ => {
                     word.push(ch);
                     self.advance();
@@ -101,6 +111,27 @@ impl Lexer {
             }
         }
         word
+    }
+
+    // Consume a parenthesized run starting at `(`, through its balanced
+    // closing paren, including everything (whitespace, operators) inside.
+    fn read_balanced_parens(&mut self) -> String {
+        let mut content = String::new();
+        let mut depth = 0u32;
+        while let Some(ch) = self.advance() {
+            content.push(ch);
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        content
     }
 
     // Read a single- or double-quoted string, including the surrounding

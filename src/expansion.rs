@@ -234,10 +234,22 @@ pub fn expand_word_no_split(word: &str, shell: &Shell) -> String {
 }
 
 /// Consume a parameter reference after a `$` and return its value.
-/// Supports `$NAME`, `${NAME}`, `$?`, `$$`, `$#`, and `$0`-`$9`.
+/// Supports `$NAME`, `${NAME}`, `$?`, `$$`, `$#`, `$0`-`$9`, `$(cmd)`
+/// command substitution, and `$((expr))` arithmetic expansion.
 /// A `$` followed by nothing expandable stays a literal `$`.
 fn expand_dollar(chars: &mut Peekable<Chars>, shell: &Shell) -> String {
     match chars.peek() {
+        Some('(') => {
+            chars.next();
+            let content = read_until_close(chars);
+            // `$((...))` is arithmetic: the balanced content of the outer
+            // parens is itself parenthesized.
+            if let Some(expr) = content.strip_prefix('(').and_then(|s| s.strip_suffix(')')) {
+                arith_eval(expr, shell).to_string()
+            } else {
+                command_substitute(&content, shell)
+            }
+        }
         Some('?') => {
             chars.next();
             shell.last_status.to_string()
@@ -282,6 +294,247 @@ fn expand_dollar(chars: &mut Peekable<Chars>, shell: &Shell) -> String {
             lookup(&name, shell)
         }
         _ => "$".to_string(),
+    }
+}
+
+/// Consume characters up to the `)` matching an already-consumed `(`,
+/// returning the content between them. Tracks nesting.
+fn read_until_close(chars: &mut Peekable<Chars>) -> String {
+    let mut content = String::new();
+    let mut depth = 1u32;
+    for c in chars.by_ref() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            _ => {}
+        }
+        content.push(c);
+    }
+    content
+}
+
+/// `$(cmd)`: run cmd in a forked subshell (so shell variables, aliases and
+/// cwd all propagate, like bash) and capture its stdout with trailing
+/// newlines removed.
+fn command_substitute(cmd: &str, shell: &Shell) -> String {
+    use nix::unistd::{ForkResult, fork, pipe};
+    use std::io::Read;
+    use std::os::unix::io::IntoRawFd;
+
+    let (r, w) = match pipe() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("rsh: pipe: {}", e);
+            return String::new();
+        }
+    };
+
+    match unsafe { fork() } {
+        Ok(ForkResult::Child) => {
+            crate::signals::restore_default_handlers();
+            let w_fd = w.into_raw_fd();
+            drop(r);
+            unsafe {
+                libc::dup2(w_fd, 1);
+                libc::close(w_fd);
+            }
+            // The fork copied all shell state, but eval needs &mut Shell —
+            // build a subshell from the pieces it can observe.
+            let mut sub = Shell::new();
+            sub.variables = shell.variables.clone();
+            sub.env = shell.env.clone();
+            sub.aliases = shell.aliases.clone();
+            sub.functions = shell.functions.clone();
+            sub.last_status = shell.last_status;
+            sub.is_interactive = false;
+            sub.is_login = false;
+            let status = sub.eval(cmd);
+            use std::io::Write;
+            let _ = std::io::stdout().flush();
+            std::process::exit(status);
+        }
+        Ok(ForkResult::Parent { child }) => {
+            drop(w);
+            let mut output = String::new();
+            let mut reader = std::fs::File::from(r);
+            let _ = reader.read_to_string(&mut output);
+            let _ = nix::sys::wait::waitpid(child, None);
+            output.trim_end_matches('\n').to_string()
+        }
+        Err(e) => {
+            eprintln!("rsh: fork: {}", e);
+            String::new()
+        }
+    }
+}
+
+// ── Arithmetic expansion ─────────────────────────────────────────────────────
+
+/// Evaluate a `$((...))` expression: i64 arithmetic with `+ - * / %`,
+/// parentheses, unary +/-, and variable references (bare `X` or `$X`,
+/// unset/non-numeric names count as 0, like bash).
+fn arith_eval(expr: &str, shell: &Shell) -> i64 {
+    let tokens = arith_tokenize(expr, shell);
+    let mut pos = 0;
+    let value = arith_expr(&tokens, &mut pos, 0);
+    if pos < tokens.len() {
+        eprintln!("rsh: arithmetic: unexpected token in '{}'", expr);
+    }
+    value
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum ArithToken {
+    Num(i64),
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    LParen,
+    RParen,
+}
+
+fn arith_tokenize(expr: &str, shell: &Shell) -> Vec<ArithToken> {
+    let mut tokens = Vec::new();
+    let mut chars = expr.chars().peekable();
+    while let Some(&c) = chars.peek() {
+        match c {
+            ' ' | '\t' => {
+                chars.next();
+            }
+            '+' => {
+                chars.next();
+                tokens.push(ArithToken::Plus);
+            }
+            '-' => {
+                chars.next();
+                tokens.push(ArithToken::Minus);
+            }
+            '*' => {
+                chars.next();
+                tokens.push(ArithToken::Star);
+            }
+            '/' => {
+                chars.next();
+                tokens.push(ArithToken::Slash);
+            }
+            '%' => {
+                chars.next();
+                tokens.push(ArithToken::Percent);
+            }
+            '(' => {
+                chars.next();
+                tokens.push(ArithToken::LParen);
+            }
+            ')' => {
+                chars.next();
+                tokens.push(ArithToken::RParen);
+            }
+            '$' => {
+                chars.next(); // `$X` inside arithmetic is the same as `X`
+            }
+            '0'..='9' => {
+                let mut n: i64 = 0;
+                while let Some(d) = chars.peek().and_then(|c| c.to_digit(10)) {
+                    n = n * 10 + d as i64;
+                    chars.next();
+                }
+                tokens.push(ArithToken::Num(n));
+            }
+            c if c.is_alphabetic() || c == '_' => {
+                let mut name = String::new();
+                while let Some(&c) = chars.peek() {
+                    if c.is_alphanumeric() || c == '_' {
+                        name.push(c);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                let value = lookup(&name, shell).trim().parse::<i64>().unwrap_or(0);
+                tokens.push(ArithToken::Num(value));
+            }
+            _ => {
+                eprintln!("rsh: arithmetic: unexpected character '{}'", c);
+                chars.next();
+            }
+        }
+    }
+    tokens
+}
+
+/// Precedence-climbing parser: `* / %` bind tighter than `+ -`.
+fn arith_expr(tokens: &[ArithToken], pos: &mut usize, min_prec: u8) -> i64 {
+    let mut lhs = arith_primary(tokens, pos);
+    loop {
+        let (op, prec) = match tokens.get(*pos) {
+            Some(ArithToken::Plus) => (ArithToken::Plus, 1),
+            Some(ArithToken::Minus) => (ArithToken::Minus, 1),
+            Some(ArithToken::Star) => (ArithToken::Star, 2),
+            Some(ArithToken::Slash) => (ArithToken::Slash, 2),
+            Some(ArithToken::Percent) => (ArithToken::Percent, 2),
+            _ => break,
+        };
+        if prec < min_prec {
+            break;
+        }
+        *pos += 1;
+        let rhs = arith_expr(tokens, pos, prec + 1);
+        lhs = match op {
+            ArithToken::Plus => lhs.wrapping_add(rhs),
+            ArithToken::Minus => lhs.wrapping_sub(rhs),
+            ArithToken::Star => lhs.wrapping_mul(rhs),
+            ArithToken::Slash => {
+                if rhs == 0 {
+                    eprintln!("rsh: arithmetic: division by zero");
+                    0
+                } else {
+                    lhs.wrapping_div(rhs)
+                }
+            }
+            ArithToken::Percent => {
+                if rhs == 0 {
+                    eprintln!("rsh: arithmetic: division by zero");
+                    0
+                } else {
+                    lhs.wrapping_rem(rhs)
+                }
+            }
+            _ => unreachable!(),
+        };
+    }
+    lhs
+}
+
+fn arith_primary(tokens: &[ArithToken], pos: &mut usize) -> i64 {
+    match tokens.get(*pos) {
+        Some(ArithToken::Num(n)) => {
+            *pos += 1;
+            *n
+        }
+        Some(ArithToken::Minus) => {
+            *pos += 1;
+            -arith_primary(tokens, pos)
+        }
+        Some(ArithToken::Plus) => {
+            *pos += 1;
+            arith_primary(tokens, pos)
+        }
+        Some(ArithToken::LParen) => {
+            *pos += 1;
+            let value = arith_expr(tokens, pos, 0);
+            if tokens.get(*pos) == Some(&ArithToken::RParen) {
+                *pos += 1;
+            }
+            value
+        }
+        _ => 0,
     }
 }
 
@@ -389,6 +642,22 @@ mod tests {
         let shell = shell_with(&[("X", "a b")]);
         assert_eq!(expand_word_no_split("$X.txt", &shell), "a b.txt");
     }
+
+    #[test]
+    fn arithmetic_expands() {
+        let shell = shell_with(&[("X", "10")]);
+        assert_eq!(expand_word("$((2 + 3 * 4))", &shell), vec!["14"]);
+        assert_eq!(expand_word("$(((2 + 3) * 4))", &shell), vec!["20"]);
+        assert_eq!(expand_word("$((X / 2))", &shell), vec!["5"]);
+        assert_eq!(expand_word("$(($X % 3))", &shell), vec!["1"]);
+        assert_eq!(expand_word("$((-X))", &shell), vec!["-10"]);
+        assert_eq!(expand_word("$((5 / 0))", &shell), vec!["0"]);
+        assert_eq!(expand_word("$((UNSET + 1))", &shell), vec!["1"]);
+    }
+
+    // NOTE: $(cmd) substitution is not unit-tested here — the forked child
+    // inherits libtest's output capture, so builtin output never reaches the
+    // pipe. tests/cli.rs covers it end-to-end against the real binary.
 
     #[test]
     fn positional_params_expand() {
