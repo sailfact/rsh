@@ -1,11 +1,15 @@
 use rsh::Shell;
 
-// TODO Wire install_defaults into main.rs:
 fn main() {
     let mut shell = Shell::new();
-    shell.install_defaults();
-    if let Err(e) = shell.run() {
-        eprintln!("rsh: {e}");
-        std::process::exit(1);
+    if shell.is_interactive {
+        shell.install_defaults();
+    }
+    match shell.run() {
+        Ok(code) => std::process::exit(code),
+        Err(e) => {
+            eprintln!("rsh: {e}");
+            std::process::exit(1);
+        }
     }
 }

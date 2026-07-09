@@ -5,12 +5,15 @@
 pub mod ast;
 pub mod builtins;
 pub mod executor;
+pub mod expansion;
 pub mod external;
 pub mod jobs;
 pub mod lexer;
 pub mod parser;
 pub mod repl;
+pub mod script;
 pub mod shell;
+pub mod signals;
 
 pub use repl::Repl;
 pub use repl::{ReadResult, ReplError};

@@ -22,7 +22,19 @@ pub fn dispatch(name: &str, args: Vec<OsString>) -> i32 {
         "csplit" => uu_csplit::uumain(args.into_iter()),
         "split" => uu_split::uumain(args.into_iter()),
         "tee" => uu_tee::uumain(args.into_iter()),
-        "test" | "[" => uu_test::uumain(args.into_iter()),
+        "test" => uu_test::uumain(args.into_iter()),
+        // `[ expr ]` is `test expr`; uu_test doesn't detect the bracket
+        // form from argv[0], so normalize here.
+        "[" => {
+            let mut args = args;
+            if args.last().map(|a| a == "]") != Some(true) {
+                eprintln!("rsh: [: missing closing ']'");
+                return 2;
+            }
+            args.pop();
+            args[0] = OsString::from("test");
+            uu_test::uumain(args.into_iter())
+        }
         "expr" => uu_expr::uumain(args.into_iter()),
         _ => unreachable!(),
     }

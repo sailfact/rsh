@@ -39,12 +39,22 @@ impl Lexer {
                 } // Skip Spaces ' ' & tabs '\t'
                 '|' => {
                     self.advance();
-                    tokens.push(Token::Pipe);
-                } // Push | on to heap
+                    if self.peek() == Some('|') {
+                        self.advance();
+                        tokens.push(Token::OrIf);
+                    } else {
+                        tokens.push(Token::Pipe);
+                    }
+                }
                 '&' => {
                     self.advance();
-                    tokens.push(Token::Ampersand);
-                } // Push & on to heap
+                    if self.peek() == Some('&') {
+                        self.advance();
+                        tokens.push(Token::AndIf);
+                    } else {
+                        tokens.push(Token::Ampersand);
+                    }
+                }
                 ';' => {
                     self.advance();
                     tokens.push(Token::Semicolon);
@@ -74,12 +84,26 @@ impl Lexer {
     }
     // Read a word — unquoted and quoted runs with no intervening whitespace
     // glue together into a single token (so `ll='ls -la'` is one word).
+    //
+    // Quote characters are KEPT in the token: the expansion pass
+    // (src/expansion.rs) needs them to decide what to expand, and it is
+    // responsible for quote removal.
     fn read_word(&mut self) -> String {
         let mut word = String::new();
         while let Some(ch) = self.peek() {
             match ch {
                 ' ' | '\t' | '|' | '&' | ';' | '<' | '>' => break,
                 '\'' | '"' => word.push_str(&self.read_quoted()),
+                '$' => {
+                    word.push(ch);
+                    self.advance();
+                    // `$(cmd ...)` and `$((expr ...))` may contain spaces
+                    // and operators; consume through the balanced close so
+                    // the whole construct stays in one word.
+                    if self.peek() == Some('(') {
+                        word.push_str(&self.read_balanced_parens());
+                    }
+                }
                 _ => {
                     word.push(ch);
                     self.advance();
@@ -89,15 +113,49 @@ impl Lexer {
         word
     }
 
-    // Read a single- or double-quoted string, consuming the surrounding quotes.
+    // Consume a parenthesized run starting at `(`, through its balanced
+    // closing paren, including everything (whitespace, operators) inside.
+    // Parens inside single or double quotes don't count toward nesting,
+    // so `$(printf ')')` scans correctly.
+    fn read_balanced_parens(&mut self) -> String {
+        let mut content = String::new();
+        let mut depth = 0u32;
+        let mut quote: Option<char> = None;
+        while let Some(ch) = self.advance() {
+            content.push(ch);
+            match quote {
+                Some(q) => {
+                    if ch == q {
+                        quote = None;
+                    }
+                }
+                None => match ch {
+                    '\'' | '"' => quote = Some(ch),
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                },
+            }
+        }
+        content
+    }
+
+    // Read a single- or double-quoted string, including the surrounding
+    // quotes (quote removal happens during expansion).
     fn read_quoted(&mut self) -> String {
         let quote = self.advance().unwrap(); // consume opening quote
         let mut word = String::new();
+        word.push(quote);
         while let Some(ch) = self.advance() {
+            word.push(ch);
             if ch == quote {
                 break;
             }
-            word.push(ch);
         }
         word
     }

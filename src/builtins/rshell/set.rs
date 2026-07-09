@@ -39,6 +39,17 @@ impl Builtin for Set {
                     }
                     shell.options.insert(name.clone(), enable);
                 }
+                "--" => {
+                    // `set -- a b c` replaces the positional parameters,
+                    // stored as "1", "2", ... in shell.variables.
+                    shell
+                        .variables
+                        .retain(|k, _| !k.chars().all(|c| c.is_ascii_digit()));
+                    for (i, value) in iter.cloned().enumerate() {
+                        shell.variables.insert((i + 1).to_string(), value);
+                    }
+                    break;
+                }
                 s if s.starts_with('-') || s.starts_with('+') => {
                     let enable = s.starts_with('-');
                     for ch in s.chars().skip(1) {
@@ -57,10 +68,16 @@ impl Builtin for Set {
                         shell.options.insert(name.into(), enable);
                     }
                 }
-                _ => {
-                    // Positional parameter assignment is not modeled in the
-                    // current Shell struct; we silently accept and ignore the
-                    // remaining arguments so that simple scripts still work.
+                arg => {
+                    // A bare word also starts the positional parameters.
+                    let mut positionals: Vec<String> = vec![arg.to_string()];
+                    positionals.extend(iter.cloned());
+                    shell
+                        .variables
+                        .retain(|k, _| !k.chars().all(|c| c.is_ascii_digit()));
+                    for (i, value) in positionals.into_iter().enumerate() {
+                        shell.variables.insert((i + 1).to_string(), value);
+                    }
                     break;
                 }
             }

@@ -52,14 +52,21 @@ mod tests {
     }
 
     #[test]
-    fn test_quoted_string() {
+    fn test_quoted_string_keeps_quotes() {
+        // Quote removal is the expansion pass's job, not the lexer's.
         let tokens = tokenize("echo 'hello world'");
         assert_eq!(
             tokens,
             vec![
                 Token::Word("echo".into()),
-                Token::Word("hello world".into()),
+                Token::Word("'hello world'".into()),
             ]
         );
+    }
+
+    #[test]
+    fn test_glued_quoted_and_unquoted_runs() {
+        let tokens = tokenize("ll='ls -la'");
+        assert_eq!(tokens, vec![Token::Word("ll='ls -la'".into())]);
     }
 }
