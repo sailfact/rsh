@@ -427,6 +427,13 @@ fn command_substitution_cwd_follows_cd() {
 }
 
 #[test]
+fn command_substitution_with_quoted_parens() {
+    assert_eq!(stdout(&rsh_c("echo $(printf ')')")), ")\n");
+    assert_eq!(stdout(&rsh_c("echo $(echo 'a)b')")), "a)b\n");
+    assert_eq!(stdout(&rsh_c("echo \"$(printf '(x)')\"")), "(x)\n");
+}
+
+#[test]
 fn arithmetic_expansion() {
     assert_eq!(stdout(&rsh_c("echo $((2 + 3 * 4))")), "14\n");
     assert_eq!(stdout(&rsh_c("echo $(( (2 + 3) * 4 ))")), "20\n");

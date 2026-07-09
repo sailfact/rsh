@@ -298,20 +298,30 @@ fn expand_dollar(chars: &mut Peekable<Chars>, shell: &Shell) -> String {
 }
 
 /// Consume characters up to the `)` matching an already-consumed `(`,
-/// returning the content between them. Tracks nesting.
+/// returning the content between them. Tracks nesting; parens inside
+/// single or double quotes don't count.
 fn read_until_close(chars: &mut Peekable<Chars>) -> String {
     let mut content = String::new();
     let mut depth = 1u32;
+    let mut quote: Option<char> = None;
     for c in chars.by_ref() {
-        match c {
-            '(' => depth += 1,
-            ')' => {
-                depth -= 1;
-                if depth == 0 {
-                    break;
+        match quote {
+            Some(q) => {
+                if c == q {
+                    quote = None;
                 }
             }
-            _ => {}
+            None => match c {
+                '\'' | '"' => quote = Some(c),
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            },
         }
         content.push(c);
     }

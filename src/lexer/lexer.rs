@@ -115,20 +115,31 @@ impl Lexer {
 
     // Consume a parenthesized run starting at `(`, through its balanced
     // closing paren, including everything (whitespace, operators) inside.
+    // Parens inside single or double quotes don't count toward nesting,
+    // so `$(printf ')')` scans correctly.
     fn read_balanced_parens(&mut self) -> String {
         let mut content = String::new();
         let mut depth = 0u32;
+        let mut quote: Option<char> = None;
         while let Some(ch) = self.advance() {
             content.push(ch);
-            match ch {
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
+            match quote {
+                Some(q) => {
+                    if ch == q {
+                        quote = None;
                     }
                 }
-                _ => {}
+                None => match ch {
+                    '\'' | '"' => quote = Some(ch),
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                },
             }
         }
         content
